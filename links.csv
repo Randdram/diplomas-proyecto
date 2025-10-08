@@ -1,0 +1,4 @@
+alumno,curso,escuela,folio,verificacion,pdf
+Ana Torres,Excel Intermedio,Colegio Alfa,6152a872-a08f-11f0-b271-d85ed3174a0b,http://localhost:8000/verificar/6152a872-a08f-11f0-b271-d85ed3174a0b,http://localhost:8000/pdfs/DIPLOMA_2_6152a872-a08f-11f0-b271-d85ed3174a0b.pdf
+Juan Pérez,Computación Básica,Sec. Técnica 12,61562832-a08f-11f0-b271-d85ed3174a0b,http://localhost:8000/verificar/61562832-a08f-11f0-b271-d85ed3174a0b,http://localhost:8000/pdfs/DIPLOMA_3_61562832-a08f-11f0-b271-d85ed3174a0b.pdf
+Kevin Santillán,Computación Básica,Sec. Técnica 12,7cdf9138-0bb2-4d4f-8100-175b40b220b8,http://localhost:8000/verificar/7cdf9138-0bb2-4d4f-8100-175b40b220b8,http://localhost:8000/pdfs/DIPLOMA_4_7cdf9138-0bb2-4d4f-8100-175b40b220b8.pdf

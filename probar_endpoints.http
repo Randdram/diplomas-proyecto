@@ -1,0 +1,8 @@
+### Ver estado JSON (reemplaza EL_FOLIO)
+GET http://localhost:8000/api/estado/7cdf9138-0bb2-4d4f-8100-175b40b220b8
+
+### Ver página de verificación (reemplaza EL_FOLIO)
+GET http://localhost:8000/verificar/7cdf9138-0bb2-4d4f-8100-175b40b220b8
+
+### Lista de PDFs (estáticos)
+GET http://localhost:8000/pdfs/

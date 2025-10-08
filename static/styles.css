@@ -1,0 +1,83 @@
+/* ---------- Portal Escolar Minimalista ---------- */
+:root{
+  --bg:#0f172a;
+  --card:#0b1220;
+  --txt:#f8fafc;
+  --muted:#9ca3af;
+  --brand:#3b82f6;
+  --ok:#16a34a;
+  --bad:#ef4444;
+  --line:#1f2937;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+  background:var(--bg); color:var(--txt);
+}
+
+.nav{
+  max-width:980px; margin:0 auto; padding:14px 18px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.brand{ display:flex; gap:10px; align-items:center; }
+.brand .logo{
+  width:34px; height:34px; border-radius:8px; background:linear-gradient(135deg,var(--brand),#60a5fa);
+  display:inline-block;
+}
+.brand .title{ font-weight:700; letter-spacing:.3px; }
+
+.nav .links a{
+  color:var(--txt); text-decoration:none; margin-left:12px; opacity:.9;
+}
+.nav .links a:hover{ opacity:1; }
+
+.main{ padding:10px 18px 28px; }
+.hero{
+  max-width:980px; margin:0 auto; padding:26px 20px 8px;
+}
+.hero h1{ font-size:2rem; margin:8px 0 6px; }
+.hero p{ color:var(--muted); margin:0; }
+
+.grid-2{
+  max-width:980px; margin:16px auto; display:grid; gap:16px; grid-template-columns:1fr 1fr;
+}
+@media (max-width:780px){ .grid-2{ grid-template-columns:1fr; } }
+
+.card{
+  background:var(--card); padding:22px 20px; border-radius:14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.35);
+}
+
+h2{ font-size:1.25rem; margin:0 0 8px; }
+.row{ margin:8px 0; }
+.muted{ color:var(--muted); }
+
+.btn{
+  display:inline-block; background:#111827; color:#fff; text-decoration:none;
+  padding:10px 14px; border-radius:10px; margin-right:8px;
+}
+.btn.brand{ background:var(--brand); }
+
+input,select{
+  width:100%; padding:11px 12px; border-radius:10px; border:none; margin:6px 0 10px;
+  background:#0a0f1c; color:var(--txt); outline:1px solid transparent;
+}
+input:focus,select:focus{ outline-color:var(--brand); }
+
+.tbl{ width:100%; border-collapse:collapse; }
+.tbl th,.tbl td{ padding:10px 8px; border-bottom:1px solid var(--line); font-size:.95rem; }
+.tbl thead th{ color:#cbd5e1; text-align:left; }
+
+.badge{ display:inline-block; padding:6px 12px; border-radius:999px; font-weight:700; font-size:.88rem; }
+.badge.ok{ background:var(--ok); color:#fff; }
+.badge.bad{ background:var(--bad); color:#fff; }
+.badge.muted{ background:#334155; color:#e5e7eb; }
+
+.footer{
+  max-width:980px; margin:30px auto 18px; padding:0 18px; color:var(--muted); font-size:.95rem;
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+}
+.footer a{ color:#cbd5e1; text-decoration:none; }
+.footer a:hover{ text-decoration:underline; }
