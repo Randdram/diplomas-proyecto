@@ -9,22 +9,34 @@ import subprocess
 import csv
 import mysql.connector as mysql
 from dotenv import load_dotenv
+import mysql.connector as mysql
 
-from fastapi import FastAPI, HTTPException, Form
+from fastapi import FastAPI, HTTPException, Form, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from starlette.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.cors import CORSMiddleware
-from fastapi import UploadFile, File, Form
+
+# --- NUEVOS IMPORTS (arriba) ---
+import os
+from datetime import datetime
+import mysql.connector as mysql
+
+from fastapi import Request, Query
+from fastapi.responses import HTMLResponse
+from starlette.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+# --- FIN NUEVOS IMPORTS ---
+
 # ⬇️ NUEVO: importamos la generación automática
 from auto_diplomas import generar_diplomas_automatica
 
 # ========= Carga de variables de entorno (.env) =========
 load_dotenv()
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_NAME = os.getenv("DB_NAME", "escuela_compu")
+DB_HOST = os.getenv("DB_HOST") or os.getenv("MYSQL_ADDON_HOST") or "127.0.0.1"
+DB_PORT = int(os.getenv("DB_PORT") or os.getenv("MYSQL_ADDON_PORT") or 3306)
+DB_USER = os.getenv("DB_USER") or os.getenv("MYSQL_ADDON_USER") or "root"
+DB_PASSWORD = os.getenv("DB_PASSWORD") or os.getenv("MYSQL_ADDON_PASSWORD") or ""
+DB_NAME = os.getenv("DB_NAME") or os.getenv("MYSQL_ADDON_DB") or "escuela_compu"
 
 BASE_URL_VERIFICACION = os.getenv("BASE_URL_VERIFICACION", "http://localhost:8000")
 SALIDA_PDFS = os.getenv("SALIDA_PDFS", "out")
@@ -51,14 +63,25 @@ Path(SALIDA_PDFS).mkdir(parents=True, exist_ok=True)
 # Montar la carpeta estática para servir los PDF
 app.mount("/pdfs", StaticFiles(directory=SALIDA_PDFS), name="pdfs")
 
-# Servir archivos estáticos (CSS, imágenes, etc.)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# -- Templates (carpeta 'templates') --
+templates = Jinja2Templates(directory="templates")
+
+# -- Static (carpeta 'static') --  (si ya lo tienes, no dupliques)
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except Exception:
+    # por si ya estaba montado
+    pass
 
 
 # ========= Utilidades comunes =========
 def conectar_db():
     return mysql.connect(
-        host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME
     )
 
 def _serialize(v):
@@ -228,28 +251,20 @@ def verificar(folio: str):
 
 # ========= PORTAL: FORMULARIO DE CURP (GET/POST) =========
 @app.get("/ingresar", response_class=HTMLResponse)
-def ingresar_form(error: str | None = None):
-    err_html = f"<div class='row'><span class='badge bad'>{error}</span></div>" if error else ""
-    body = f"""
-    <h1>Portal de Alumnos</h1>
-    <div class="card">
-      {err_html}
-      <form method="post" action="/ingresar" class="stack" autocomplete="off" novalidate>
-        <label>CURP</label>
-        <input name="curp"
-               placeholder="Escribe tu CURP"
-               maxlength="18"
-               minlength="18"
-               pattern="[A-Za-z0-9]{{18}}"
-               title="El CURP debe tener 18 caracteres (letras y números)."
-               style="text-transform:uppercase"
-               required>
-        <button class="btn" type="submit">Entrar</button>
-      </form>
-      <small class="muted">Solo se usa para buscar tus diplomas. No se guarda contraseña.</small>
-    </div>
-    """
-    return HTMLResponse(_html_layout(body))
+async def portal_alumnos(request: Request, curp: str | None = Query(default=None)):
+    """Portal para que el alumno busque con su CURP y descargue sus diplomas."""
+    diplomas = []
+    if curp:
+        diplomas = fetch_diplomas_by_curp(curp)
+
+    ctx = {
+        "request": request,
+        "curp": (curp or "").upper(),
+        "diplomas": diplomas,
+        "now": datetime.now().year,
+        "title": "Portal de Alumnos",
+    }
+    return templates.TemplateResponse("portal.html", ctx)
 
 @app.post("/ingresar")
 def ingresar_post(curp: str = Form(...)):
@@ -1092,3 +1107,167 @@ async def admin_carga_procesar(token: str = Form(...), archivo: UploadFile = Fil
     </div>
     """
     return HTMLResponse(_html_layout(body))
+
+
+# === Sincronizar PDFs con Supabase ===
+from storage_supabase import upload_pdf
+from fastapi import Request
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/admin/sync")
+def admin_sync(request: Request, token: str):
+    if token != ADMIN_TOKEN:
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Acceso denegado",
+            "mensaje": "Token inválido o no autorizado.",
+            "color": "var(--bad)"
+        })
+
+    try:
+        import mysql.connector as mysql
+        conn = mysql.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        cursor = conn.cursor(dictionary=True)
+
+        # Seleccionar diplomas sin URL
+        cursor.execute("SELECT diploma_id, folio, pdf_path FROM diploma WHERE pdf_url IS NULL OR pdf_url = ''")
+        sin_url = cursor.fetchall()
+
+        if not sin_url:
+            # Si no hay pendientes, mostrar todos los diplomas con su URL
+            cursor.execute("""
+                SELECT a.nombre AS alumno, d.folio, d.pdf_url
+                FROM diploma d
+                JOIN alumno a ON d.alumno_id = a.alumno_id
+                ORDER BY a.nombre ASC
+            """)
+            diplomas = cursor.fetchall()
+            conn.close()
+            return templates.TemplateResponse("mensaje.html", {
+                "request": request,
+                "titulo": "Sincronización completada",
+                "mensaje": "Todos los diplomas ya tienen URL en Supabase.",
+                "color": "var(--ok)",
+                "diplomas": diplomas
+            })
+
+        # Subir archivos que no tengan URL
+        for d in sin_url:
+            path_local = d["pdf_path"]
+            nombre_pdf = os.path.basename(path_local)
+            url_publica = upload_pdf(path_local, nombre_pdf)
+
+            cursor.execute(
+                "UPDATE diploma SET pdf_url = %s WHERE diploma_id = %s",
+                (url_publica, d["diploma_id"])
+            )
+
+        conn.commit()
+        conn.close()
+
+        # Mostrar lista completa tras sincronización
+        conn = mysql.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT a.nombre AS alumno, d.folio, d.pdf_url
+            FROM diploma d
+            JOIN alumno a ON d.alumno_id = a.alumno_id
+            ORDER BY a.nombre ASC
+        """)
+        diplomas = cursor.fetchall()
+        conn.close()
+
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Sincronización completada",
+            "mensaje": f"{len(sin_url)} diplomas fueron actualizados correctamente.",
+            "color": "var(--ok)",
+            "diplomas": diplomas
+        })
+
+    except Exception as e:
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Error durante la sincronización",
+            "mensaje": str(e),
+            "color": "var(--bad)"
+        })
+
+def _get_conn():
+    return mysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        autocommit=True,
+    )
+
+def fetch_diplomas_by_curp(curp: str):
+    """Devuelve lista de diplomas para la CURP dada, con curso y URL del PDF."""
+    if not curp:
+        return []
+    sql = """
+        SELECT
+            d.folio,
+            d.estado,
+            d.fecha_emision,
+            COALESCE(d.pdf_url, d.pdf_path) AS pdf_url,
+            COALESCE(c.nombre, '') AS curso
+        FROM alumno a
+        JOIN diploma d ON d.alumno_id = a.alumno_id
+        LEFT JOIN curso c ON c.curso_id = d.curso_id
+        WHERE UPPER(a.curp) = UPPER(%s)
+        ORDER BY d.fecha_emision DESC, d.folio DESC
+    """
+    rows = []
+    try:
+        conn = _get_conn()
+        cur = conn.cursor(dictionary=True)
+        cur.execute(sql, (curp,))
+        rows = cur.fetchall() or []
+        cur.close()
+        conn.close()
+    except Exception as e:
+        # No rompemos la vista si falla; devolvemos vacío
+        print(f"[fetch_diplomas_by_curp] error: {e}")
+        rows = []
+    return rows
+
+try:
+    conn = mysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME
+    )
+    cursor = conn.cursor(dictionary=True)
+    print("✅ Conectado correctamente a MySQL")
+except Exception as e:
+    print("⚠️ Error de conexión MySQL:", e)
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request, token: str | None = Query(None)):
+    """Portada: verificación por folio + acceso alumnos. Muestra botones admin si llega token."""
+    ctx = {
+        "request": request,
+        "token": token if token else None,  # si pasas /?token=... se pintan botones admin
+        "now": datetime.now().year,
+        "title": "Portal Escolar · Verificación de Diplomas",
+    }
+    return templates.TemplateResponse("index.html", ctx)

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ titulo }}</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding-top: 60px;
+        }
+        .card {
+            background: #161b22;
+            border-radius: 12px;
+            padding: 30px 40px;
+            box-shadow: 0 0 12px rgba(0,0,0,0.5);
+            max-width: 900px;
+            width: 90%;
+        }
+        h1 {
+            color: #58a6ff;
+            text-align: center;
+        }
+        p {
+            text-align: center;
+            font-size: 1.1rem;
+        }
+        table {
+            width: 100%;
+            margin-top: 25px;
+            border-collapse: collapse;
+            border: 1px solid #30363d;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 10px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #21262d;
+            color: #58a6ff;
+        }
+        tr:hover {
+            background-color: #21262d;
+        }
+        a {
+            color: #3fb950;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .ok {
+            color: #3fb950;
+        }
+        .bad {
+            color: #f85149;
+        }
+        .refresh-btn {
+            display: block;
+            margin: 0 auto 20px auto;
+            padding: 10px 16px;
+            background-color: #238636;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+        .refresh-btn:hover {
+            background-color: #2ea043;
+        }
+        .refresh-btn:active {
+            background-color: #196127;
+        }
+        .refresh-icon {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>{{ titulo }}</h1>
+        <p class="{% if color == 'var(--ok)' %}ok{% else %}bad{% endif %}">{{ mensaje }}</p>
+
+        <!-- Botón para volver a sincronizar -->
+        <button class="refresh-btn" onclick="window.location.href='/admin/sync?token=GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8'">
+            <span class="refresh-icon">↻</span> Volver a sincronizar
+        </button>
+
+        {% if diplomas %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Alumno</th>
+                    <th>Folio</th>
+                    <th>URL del Diploma</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in diplomas %}
+                <tr>
+                    <td>{{ d.alumno }}</td>
+                    <td>{{ d.folio }}</td>
+                    <td><a href="{{ d.pdf_url }}" target="_blank">Ver diploma</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -9,3 +9,6 @@ pydantic==2.9.2
 python-multipart
 python-multipart
 python-multipart
+jinja2
+starlette
+requests

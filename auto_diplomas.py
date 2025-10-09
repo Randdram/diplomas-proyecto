@@ -1,15 +1,18 @@
 # auto_diplomas.py
-import os, uuid, hashlib
+import os
+import uuid
+import hashlib
 from io import BytesIO
 from pathlib import Path
 from datetime import date
-
 from dotenv import load_dotenv
-import mysql.connector as mysql
+import mysql.connector
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from PyPDF2 import PdfReader, PdfWriter, PageObject
+from storage_supabase import upload_pdf
 
+# === Cargar variables del entorno (.env) ===
 load_dotenv()
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
@@ -22,11 +25,20 @@ PLANTILLA_PDF = os.getenv("PLANTILLA_PDF", "RECONOCIMIENTOv2.pdf")
 SALIDA_PDFS = os.getenv("SALIDA_PDFS", "out")
 Path(SALIDA_PDFS).mkdir(parents=True, exist_ok=True)
 
+# === Conexión MySQL ===
 def conectar_db():
-    return mysql.connect(
-        host=DB_HOST, port=DB_PORT, user=DB_USER,
-        password=DB_PASSWORD, database=DB_NAME
-    )
+    try:
+        conn = mysql.connector.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
+        return conn
+    except mysql.connector.Error as err:
+        print(f"❌ Error al conectar con MySQL: {err}")
+        exit(1)
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -64,11 +76,13 @@ def merge_with_template(overlay_buf: BytesIO, out_path: Path):
     with open(out_path, "wb") as f:
         writer.write(f)
 
+# === Generar diplomas automáticamente ===
 def generar_diplomas_automatica():
     conn = conectar_db()
     cur  = conn.cursor(dictionary=True)
 
-    # >>> SIN GROUP BY, compatible con ONLY_FULL_GROUP_BY <<<
+    print("🚀 Generando diplomas pendientes con plantilla…")
+
     cur.execute("""
         SELECT a.alumno_id, a.nombre AS alumno, a.curp,
                IFNULL(g.nombre,'-') AS grado,
@@ -106,34 +120,49 @@ def generar_diplomas_automatica():
     alumnos = cur.fetchall() or []
     print(f"🔍 Alumnos sin diploma: {len(alumnos)}")
 
+    if not alumnos:
+        print("✅ No hay alumnos pendientes de diploma.")
+        cur.close(); conn.close()
+        return
+
     for a in alumnos:
-        folio = str(uuid.uuid4())
-        fecha = date.today().isoformat()
-        pdf_name = f"DIPLOMA_{a['alumno_id']}_{folio}.pdf"
-        pdf_path = Path(SALIDA_PDFS) / pdf_name
+        try:
+            folio = str(uuid.uuid4())
+            fecha = date.today().isoformat()
+            pdf_name = f"DIPLOMA_{a['alumno_id']}_{folio}.pdf"
+            pdf_path = Path(SALIDA_PDFS) / pdf_name
 
-        overlay = draw_overlay({"alumno": a["alumno"], "fecha_emision": fecha, "folio": folio})
-        merge_with_template(overlay, pdf_path)
-        h = sha256_file(pdf_path)
+            overlay = draw_overlay({"alumno": a["alumno"], "fecha_emision": fecha, "folio": folio})
+            merge_with_template(overlay, pdf_path)
+            h = sha256_file(pdf_path)
 
-        cur.execute("""
-            INSERT INTO diploma
-              (alumno_id, curso_id, coordinador_id, folio, estado,
-               fecha_emision, pdf_path, hash_sha256)
-            VALUES (%s, %s, %s, %s, 'VALIDO', %s, %s, %s)
-        """, (
-            a["alumno_id"], a["curso_id"], a["coordinador_id"],
-            folio, fecha, pdf_path.as_posix(), h
-        ))
-        conn.commit()
-        print(f"✅ Generado: {a['alumno']} -> {pdf_path.name}")
+            # Subir automáticamente el PDF a Supabase
+            try:
+                url_pdf = upload_pdf(pdf_path.as_posix(), f"diplomas/{pdf_name}")
+                print(f"✅ Subido a Supabase: {url_pdf}")
+            except Exception as e:
+                url_pdf = ""
+                print(f"⚠️ Error al subir o registrar el PDF: {e}")
+
+            # Insertar en MySQL
+            cur.execute("""
+                INSERT INTO diploma
+                  (alumno_id, curso_id, coordinador_id, folio, estado,
+                   fecha_emision, pdf_path, hash_sha256, created_at, pdf_url)
+                VALUES (%s, %s, %s, %s, 'VALIDO', %s, %s, %s, NOW(), %s)
+            """, (
+                a["alumno_id"], a["curso_id"], a["coordinador_id"],
+                folio, fecha, pdf_path.as_posix(), h, url_pdf
+            ))
+            conn.commit()
+            print(f"💾 Diploma guardado en BD para {a['alumno']}.\n")
+
+        except Exception as e:
+            print(f"⚠️ Error procesando {a['alumno']}: {e}")
+            conn.rollback()
 
     cur.close(); conn.close()
-    if not alumnos:
-        print("✅ No hay nada que generar.")
-    else:
-        print("🎉 Listo.")
+    print("🎉 Generación completada.")
 
 if __name__ == "__main__":
-    print("🚀 Generando diplomas pendientes con plantilla…")
     generar_diplomas_automatica()
