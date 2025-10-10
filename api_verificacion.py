@@ -80,6 +80,24 @@ except Exception:
     pass
 
 
+# ====== SERVIDOR DE PORTAL PRINCIPAL ======
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi import Request
+
+# Montar carpeta de archivos estáticos
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Definir carpeta de plantillas HTML
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Muestra el portal principal con la interfaz de verificación."""
+    return templates.TemplateResponse("portal.html", {"request": request})
+
+
 # ========= Utilidades comunes =========
 def conectar_db():
     return mysql.connect(
