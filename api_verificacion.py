@@ -50,55 +50,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS (ajústalo en producción)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,  # Esto permite enviar cookies/autenticación si lo necesitas
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Servir PDFs estáticamente desde /pdfs  (carpeta local SALIDA_PDFS)
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-
-# Crear la carpeta de salida si no existe
-Path(SALIDA_PDFS).mkdir(parents=True, exist_ok=True)
-
-# Montar la carpeta estática para servir los PDF
-app.mount("/pdfs", StaticFiles(directory=SALIDA_PDFS), name="pdfs")
-
-# -- Templates (carpeta 'templates') --
-templates = Jinja2Templates(directory="templates")
-
-# -- Static (carpeta 'static') --  (si ya lo tienes, no dupliques)
-try:
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-except Exception:
-    # por si ya estaba montado
-    pass
-
-
-# ====== SERVIDOR DE PORTAL PRINCIPAL ======
-from fastapi.responses import HTMLResponse
+# ========= SERVIDOR WEB DEL PORTAL =========
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from fastapi import Request
 
-# Montar carpeta de archivos estáticos
+# Archivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Definir carpeta de plantillas HTML
+# Plantillas HTML
 templates = Jinja2Templates(directory="templates")
 
 # Página principal
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Carga la página principal (index.html)"""
     return templates.TemplateResponse("index.html", {"request": request, "title": "Portal Escolar"})
 
-# Permitir peticiones HEAD (para evitar error 405)
+# HEAD (para evitar error 405)
 @app.head("/", response_class=HTMLResponse)
 async def head_root():
     return HTMLResponse(status_code=200)
