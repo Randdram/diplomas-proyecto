@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import mysql.connector as mysql
 
 from fastapi import FastAPI, Request, Form, Query, File, UploadFile
+from fastapi import FastAPI, HTTPException, Form, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.templating import Jinja2Templates
@@ -1276,3 +1277,17 @@ async def home(request: Request, token: str | None = Query(None)):
         "title": "Portal Escolar · Verificación de Diplomas",
     }
     return templates.TemplateResponse("index.html", ctx)
+
+
+from fastapi.responses import JSONResponse
+from base_alumnos import get_db_connection
+
+@app.get("/db_test")
+def db_test():
+    """Verifica conexión a la base de datos Clever Cloud."""
+    conn = get_db_connection()
+    if conn:
+        conn.close()
+        return JSONResponse({"status": "ok", "message": "Conexión exitosa a Clever Cloud"})
+    else:
+        return JSONResponse({"status": "error", "message": "Error al conectar con la base de datos"})
