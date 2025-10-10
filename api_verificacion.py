@@ -96,7 +96,7 @@ templates = Jinja2Templates(directory="templates")
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Carga la página principal (index.html)"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "title": "Portal Escolar"})
 
 # Permitir peticiones HEAD (para evitar error 405)
 @app.head("/", response_class=HTMLResponse)
