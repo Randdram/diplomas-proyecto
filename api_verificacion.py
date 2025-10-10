@@ -92,10 +92,16 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Definir carpeta de plantillas HTML
 templates = Jinja2Templates(directory="templates")
 
+# Página principal
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Muestra el portal principal con la interfaz de verificación."""
-    return templates.TemplateResponse("portal.html", {"request": request})
+    """Carga la página principal (index.html)"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+# Permitir peticiones HEAD (para evitar error 405)
+@app.head("/", response_class=HTMLResponse)
+async def head_root():
+    return HTMLResponse(status_code=200)
 
 
 # ========= Utilidades comunes =========
