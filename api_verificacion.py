@@ -11,7 +11,7 @@ import mysql.connector as mysql
 from dotenv import load_dotenv
 import mysql.connector as mysql
 
-from fastapi import FastAPI, HTTPException, Form, Request, Query
+from fastapi import FastAPI, Request, Form, Query, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.templating import Jinja2Templates
