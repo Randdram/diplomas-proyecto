@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import mysql.connector as mysql
 
 from fastapi import FastAPI, HTTPException, Form, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -43,12 +44,16 @@ SALIDA_PDFS = os.getenv("SALIDA_PDFS", "out")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "cambia-esto")  # <-- cámbialo en tu .env
 
 # ========= App FastAPI =========
-app = FastAPI(title="Diplomas API", version="1.0.0")
+app = FastAPI(
+    title="Diplomas API",
+    version="1.0.0"
+)
 
 # CORS (ajústalo en producción)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,  # Esto permite enviar cookies/autenticación si lo necesitas
     allow_methods=["*"],
     allow_headers=["*"],
 )
