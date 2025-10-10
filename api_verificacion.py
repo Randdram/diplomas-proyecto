@@ -1279,6 +1279,12 @@ async def home(request: Request, token: str | None = Query(None)):
     return templates.TemplateResponse("index.html", ctx)
 
 
+@app.get("/portal", response_class=HTMLResponse)
+async def portal_home(request: Request):
+    """Muestra el portal principal."""
+    return templates.TemplateResponse("portal.html", {"request": request})
+
+
 from fastapi.responses import JSONResponse
 from base_alumnos import get_db_connection
 
