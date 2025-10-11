@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
 
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
     startCommand: "uvicorn api_verificacion:app --host 0.0.0.0 --port 10000"
 
     envVars:
@@ -28,9 +28,9 @@ services:
 
     build:
       include:
-        - static/
-        - templates/
-        - out/
         - api_verificacion.py
         - requirements.txt
         - render.yaml
+        - static/**
+        - templates/**
+        - out/**

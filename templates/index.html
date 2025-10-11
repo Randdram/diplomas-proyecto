@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title or "Portal Escolar · Verificación de Diplomas" }}</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <a class="logo" href="/"></a>
+      <a class="title" href="/">Portal Escolar</a>
+    </div>
+    <div class="links">
+      <a href="/ingresar">Alumnos</a>
+      <a href="/docs" target="_blank" rel="noopener">API</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Verificación de Diplomas</h1>
+      <p>Consulta, valida y descarga tus reconocimientos.</p>
+    </section>
+
+    <!-- Verificar por folio -->
+    <section class="card">
+      <h3>Verificar por folio</h3>
+      <form action="/verificar" method="get" style="display:flex; gap:10px; align-items:center;">
+        <input
+          type="text"
+          name="folio"
+          placeholder="Escribe tu folio"
+          required
+          style="flex:1;"
+        />
+        <button class="btn" type="submit">Verificar</button>
+      </form>
+      <small>Ejemplo de folio: 7cdf9138-0bb2-4d4f-8100-175b40b220b8</small>
+    </section>
+
+    <!-- Acceso alumnos -->
+    <section class="card">
+      <h3>Portal de Alumnos</h3>
+      <p>Si no recuerdas tu folio, entra con tu CURP y descarga tus diplomas.</p>
+      <a class="btn brand" href="/ingresar">Entrar</a>
+    </section>
+
+    <!-- Herramientas admin (opcionales, solo se dibujan si llega token) -->
+    {% if token %}
+    <section class="card">
+      <h3>Herramientas de administración</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn" href="/admin/generar?token={{ token }}">Generar PDFs</a>
+        <a class="btn" href="/admin/sync?token={{ token }}">Sincronizar a Supabase</a>
+        <a class="btn" href="/pdfs/">Ver índice de PDFs</a>
+      </div>
+      <small>Solo tú deberías ver esto (requiere <code>token</code> válido).</small>
+    </section>
+    {% endif %}
+  </main>
+
+  <footer class="wrap" style="margin-top:32px; opacity:.7;">
+    <small>© {{ (now or 2025) }} Portal Escolar · Verificación de Diplomas</small>
+  </footer>
+</body>
+</html>

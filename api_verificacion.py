@@ -94,26 +94,47 @@ app = FastAPI(
 )
 
 # ========= SERVIDOR WEB DEL PORTAL =========
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse, HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
-from fastapi import Request
+import os
 
-# Archivos estáticos
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app = FastAPI()
 
-# Plantillas HTML
-templates = Jinja2Templates(directory="templates")
+# ====== BLOQUE DE VERIFICACIÓN DE ARCHIVOS ======
+@app.get("/debug_files", response_class=PlainTextResponse)
+async def debug_files():
+    """
+    Endpoint para verificar que Render está incluyendo las carpetas necesarias.
+    Muestra el contenido de /templates y /static.
+    """
+    base_path = os.getcwd()
+    files_info = []
 
-# Página principal
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "title": "Portal Escolar"})
+    def list_files(folder):
+        path = os.path.join(base_path, folder)
+        if not os.path.exists(path):
+            return f"⚠️ No existe la carpeta: {folder}\n"
+        content = []
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                content.append(os.path.relpath(os.path.join(root, f), base_path))
+        if not content:
+            return f"⚠️ Carpeta vacía: {folder}\n"
+        return "\n".join(content) + "\n"
 
-# HEAD (para evitar error 405)
-@app.head("/", response_class=HTMLResponse)
-async def head_root():
-    return HTMLResponse(status_code=200)
+    files_info.append("===== DEBUG DE ARCHIVOS =====\n")
+    files_info.append(f"📂 Directorio base: {base_path}\n\n")
+
+    files_info.append("Contenido de /templates:\n")
+    files_info.append(list_files("templates"))
+    files_info.append("\nContenido de /static:\n")
+    files_info.append(list_files("static"))
+    files_info.append("\nContenido de /out:\n")
+    files_info.append(list_files("out"))
+
+    return "".join(files_info)
+
 
 
 # ========= Utilidades comunes =========
