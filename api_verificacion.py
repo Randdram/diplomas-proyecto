@@ -28,6 +28,49 @@ from fastapi.responses import HTMLResponse
 from starlette.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 # --- FIN NUEVOS IMPORTS ---
+import os
+
+if not os.path.exists("templates/index.html"):
+    print("⚠️ Advertencia: No se encontró templates/index.html")
+else:
+    print("✅ Templates encontrados correctamente")
+    import os
+from fastapi.responses import PlainTextResponse
+
+# ====== BLOQUE DE VERIFICACIÓN DE ARCHIVOS ======
+@app.get("/debug_files", response_class=PlainTextResponse)
+async def debug_files():
+    """
+    Endpoint para verificar que Render está incluyendo las carpetas necesarias.
+    Muestra el contenido de /templates y /static.
+    """
+    base_path = os.getcwd()
+    files_info = []
+
+    def list_files(folder):
+        path = os.path.join(base_path, folder)
+        if not os.path.exists(path):
+            return f"⚠️ No existe la carpeta: {folder}\n"
+        content = []
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                content.append(os.path.relpath(os.path.join(root, f), base_path))
+        if not content:
+            return f"⚠️ Carpeta vacía: {folder}\n"
+        return "\n".join(content) + "\n"
+
+    files_info.append("===== DEBUG DE ARCHIVOS =====\n")
+    files_info.append(f"📂 Directorio base: {base_path}\n\n")
+
+    files_info.append("Contenido de /templates:\n")
+    files_info.append(list_files("templates"))
+    files_info.append("\nContenido de /static:\n")
+    files_info.append(list_files("static"))
+    files_info.append("\nContenido de /out:\n")
+    files_info.append(list_files("out"))
+
+    return "".join(files_info)
+
 
 # ⬇️ NUEVO: importamos la generación automática
 from auto_diplomas import generar_diplomas_automatica
