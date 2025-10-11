@@ -1114,6 +1114,35 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 templates = Jinja2Templates(directory="templates")
+# ========= SERVIDOR WEB DEL PORTAL =========
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from fastapi import Request, Query
+from datetime import datetime
+
+# Archivos estáticos
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Página principal (única versión correcta)
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request, token: str | None = Query(None)):
+    """
+    Página principal del portal: Verificación de Diplomas.
+    Si recibe ?token=... mostrará herramientas administrativas.
+    """
+    ctx = {
+        "request": request,
+        "token": token if token else None,
+        "now": datetime.now().year,
+        "title": "Portal Escolar · Verificación de Diplomas",
+    }
+    return templates.TemplateResponse("index.html", ctx)
+
+# HEAD (para evitar error 405)
+@app.head("/", response_class=HTMLResponse)
+async def head_root():
+    return HTMLResponse(status_code=200)
 
 @app.get("/admin/sync")
 def admin_sync(request: Request, token: str):
