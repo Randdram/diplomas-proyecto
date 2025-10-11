@@ -2,12 +2,35 @@ services:
   - type: web
     name: diplomas-proyecto
     env: python
-    plan: free
     region: oregon
+    plan: free
+
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn api_verificacion:app --host 0.0.0.0 --port 10000"
+
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: PORT
-        value: 10000
+      - key: DB_HOST
+        value: bnxewriaejaor4fsiwhl-mysql.services.clever-cloud.com
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_USER
+        value: uahjjendsprquujy
+      - key: DB_PASSWORD
+        value: knqaLwoFhxMj87eMs4cY
+      - key: DB_NAME
+        value: bnxewriaejaor4fsiwhl
+      - key: TOKEN_ADMIN
+        value: GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8
+      - key: SALIDA_PDFS
+        value: out
+
+    build:
+      include:
+        - static/
+        - templates/
+        - out/
+        - api_verificacion.py
+        - requirements.txt
+        - render.yaml
