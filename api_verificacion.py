@@ -1,34 +1,35 @@
 # -*- coding: utf-8 -*-
 """
 Portal Escolar · Verificación de Diplomas
-Versión corregida para Render y Clever Cloud (MySQL + Supabase)
+Versión estable para despliegue en Render + Clever Cloud (MySQL + Supabase)
 """
 
 import os
+import importlib
+from datetime import datetime
 import mysql.connector
 from mysql.connector import Error
-from fastapi import FastAPI, Request, Query, HTTPException, File, UploadFile
+from fastapi import FastAPI, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
 from dotenv import load_dotenv
-import importlib
 
-# ============================
-# Configuración base
-# ============================
+# ============================================================
+# CARGA DE VARIABLES DE ENTORNO
+# ============================================================
 load_dotenv()
 
-APP_NAME = "Portal Escolar · Diplomas"
 BASE_DIR = os.path.dirname(__file__)
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 PDF_DIR = os.getenv("SALIDA_PDFS", os.path.join(BASE_DIR, "out"))
 
-# Crear aplicación
-app = FastAPI(title=APP_NAME)
+# ============================================================
+# CREACIÓN DE APP FASTAPI
+# ============================================================
+app = FastAPI(title="Portal Escolar · Diplomas")
 
 # Middleware CORS
 app.add_middleware(
@@ -39,15 +40,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Montar carpetas
+# Montar carpetas estáticas
 app.mount("/static", StaticFiles(directory=STATIC_DIR, check_dir=False), name="static")
 app.mount("/pdfs", StaticFiles(directory=PDF_DIR, check_dir=False, html=True), name="pdfs")
-
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# ============================
-# Conexión a MySQL (Clever Cloud)
-# ============================
+# ============================================================
+# CONEXIÓN A MYSQL (Clever Cloud)
+# ============================================================
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
@@ -62,15 +62,17 @@ def get_db_connection():
         print(f"⚠️ Error de conexión MySQL: {e}")
         raise
 
-# ============================
-# Endpoints base
-# ============================
+# ============================================================
+# ENDPOINTS DE DIAGNÓSTICO
+# ============================================================
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz():
+    """Verifica si la app está viva"""
     return "ok"
 
 @app.get("/db_test", response_class=PlainTextResponse)
 def db_test():
+    """Verifica conexión con MySQL"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -81,11 +83,12 @@ def db_test():
     except Exception as e:
         return f"⚠️ Error MySQL: {e}"
 
-# ============================
-# Portal principal
-# ============================
+# ============================================================
+# PORTAL PRINCIPAL
+# ============================================================
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, token: str | None = Query(None)):
+    """Página principal del portal"""
     ctx = {
         "request": request,
         "token": token if token == os.getenv("ADMIN_TOKEN") else None,
@@ -94,9 +97,9 @@ def home(request: Request, token: str | None = Query(None)):
     }
     return templates.TemplateResponse("index.html", ctx)
 
-# ============================
-# Verificar diploma por folio
-# ============================
+# ============================================================
+# VERIFICAR DIPLOMA POR FOLIO
+# ============================================================
 @app.get("/verificar", response_class=HTMLResponse)
 def verificar(request: Request, folio: str | None = Query(None)):
     if not folio:
@@ -143,9 +146,9 @@ def verificar(request: Request, folio: str | None = Query(None)):
             "color": "var(--bad)"
         })
 
-# ============================
-# Portal de alumnos
-# ============================
+# ============================================================
+# PORTAL DE ALUMNOS (BÚSQUEDA POR CURP)
+# ============================================================
 @app.get("/ingresar", response_class=HTMLResponse)
 def ingresar(request: Request, curp: str | None = Query(None)):
     diplomas = []
@@ -176,15 +179,16 @@ def ingresar(request: Request, curp: str | None = Query(None)):
         "now": datetime.now().year
     })
 
-# ============================
-# Admin endpoints
-# ============================
+# ============================================================
+# ADMINISTRACIÓN
+# ============================================================
 def check_admin(token: str):
     if token != os.getenv("ADMIN_TOKEN"):
         raise HTTPException(status_code=401, detail="No autorizado")
 
 @app.get("/admin/sync", response_class=HTMLResponse)
 def admin_sync(request: Request, token: str = Query(...)):
+    """Sincroniza diplomas con Supabase"""
     check_admin(token)
     try:
         conn = get_db_connection()
@@ -214,6 +218,7 @@ def admin_sync(request: Request, token: str = Query(...)):
 
 @app.get("/admin/generar", response_class=HTMLResponse)
 def admin_generar(request: Request, token: str = Query(...)):
+    """Genera diplomas PDF automáticamente"""
     check_admin(token)
     try:
         mod = importlib.import_module("auto_diplomas")
