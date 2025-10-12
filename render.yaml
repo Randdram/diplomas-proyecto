@@ -1,36 +1,44 @@
+# =======================================================
+# render.yaml — configuración para Render.com
+# Proyecto: Portal Escolar · Diplomas
+# =======================================================
+
 services:
   - type: web
     name: diplomas-proyecto
     env: python
-    region: oregon
     plan: free
+    region: oregon
 
-    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
-    startCommand: "uvicorn api_verificacion:app --host 0.0.0.0 --port 10000"
+    # --- Comando para construir dependencias ---
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
 
+    # --- Comando para ejecutar la app ---
+    startCommand: uvicorn api_verificacion:app --host 0.0.0.0 --port $PORT
+
+    # --- Variables de entorno ---
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: DB_HOST
-        value: bnxewriaejaor4fsiwhl-mysql.services.clever-cloud.com
-      - key: DB_PORT
-        value: "3306"
-      - key: DB_USER
-        value: uahjjendsprquujy
-      - key: DB_PASSWORD
-        value: knqaLwoFhxMj87eMs4cY
-      - key: DB_NAME
-        value: bnxewriaejaor4fsiwhl
-      - key: TOKEN_ADMIN
+      - key: ADMIN_TOKEN
         value: GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8
       - key: SALIDA_PDFS
         value: out
 
-    build:
-      include:
-        - api_verificacion.py
-        - requirements.txt
-        - render.yaml
-        - static/**
-        - templates/**
-        - out/**
+      # === Configuración de base de datos Clever Cloud ===
+      - key: MYSQL_ADDON_HOST
+        sync: false
+      - key: MYSQL_ADDON_DB
+        sync: false
+      - key: MYSQL_ADDON_USER
+        sync: false
+      - key: MYSQL_ADDON_PASSWORD
+        sync: false
+      - key: MYSQL_ADDON_PORT
+        value: 3306
+
+    # --- Opcional: health check ---
+    healthCheckPath: /healthz
+    autoDeploy: true
