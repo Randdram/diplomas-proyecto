@@ -6,9 +6,10 @@ fastapi==0.115.0
 uvicorn==0.30.6
 python-dotenv==1.0.1
 pydantic==2.9.2
-python-multipart
-python-multipart
-python-multipart
-jinja2
-starlette
-requests
+python-multipart==0.0.20
+jinja2==3.1.6
+starlette==0.38.6
+requests==2.32.3
+pillow==11.0.0
+typing-extensions==4.12.2
+supabase==2.5.1
