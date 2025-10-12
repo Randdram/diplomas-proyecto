@@ -1,237 +1,214 @@
-# -*- coding: utf-8 -*-
-"""
-Portal Escolar · Verificación de Diplomas
-Versión estable para despliegue en Render + Clever Cloud (MySQL + Supabase)
-"""
-
 import os
-import importlib
-from datetime import datetime
 import mysql.connector
-from mysql.connector import Error
-from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
+from datetime import datetime
+from supabase import create_client
 
-# ============================================================
-# CARGA DE VARIABLES DE ENTORNO
-# ============================================================
-load_dotenv()
+# =============================
+# CONFIGURACIÓN PRINCIPAL
+# =============================
 
-BASE_DIR = os.path.dirname(__file__)
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-PDF_DIR = os.getenv("SALIDA_PDFS", os.path.join(BASE_DIR, "out"))
+app = FastAPI(title="Diplomas Proyecto", version="1.0.0")
 
-# ============================================================
-# CREACIÓN DE APP FASTAPI
-# ============================================================
-app = FastAPI(title="Portal Escolar · Diplomas")
+# Archivos estáticos y templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
-# Middleware CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Variables de entorno
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
 
-# Montar carpetas estáticas
-app.mount("/static", StaticFiles(directory=STATIC_DIR, check_dir=False), name="static")
-app.mount("/pdfs", StaticFiles(directory=PDF_DIR, check_dir=False, html=True), name="pdfs")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
 
-# ============================================================
-# CONEXIÓN A MYSQL (Clever Cloud)
-# ============================================================
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
+SUPABASE_PUBLIC_BASE = os.getenv("SUPABASE_PUBLIC_BASE")
+
+
+# =============================
+# FUNCIONES AUXILIARES
+# =============================
+
 def get_db_connection():
-    try:
-        conn = mysql.connector.connect(
-            host=os.getenv("MYSQL_ADDON_HOST") or os.getenv("DB_HOST"),
-            user=os.getenv("MYSQL_ADDON_USER") or os.getenv("DB_USER"),
-            password=os.getenv("MYSQL_ADDON_PASSWORD") or os.getenv("DB_PASSWORD"),
-            database=os.getenv("MYSQL_ADDON_DB") or os.getenv("DB_NAME"),
-            port=int(os.getenv("MYSQL_ADDON_PORT") or os.getenv("DB_PORT", 3306))
-        )
-        return conn
-    except Error as e:
-        print(f"⚠️ Error de conexión MySQL: {e}")
-        raise
+    """Conecta a la base de datos MySQL (Clever Cloud)."""
+    conn = mysql.connector.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME
+    )
+    return conn
 
-# ============================================================
-# ENDPOINTS DE DIAGNÓSTICO
-# ============================================================
-@app.get("/healthz", response_class=PlainTextResponse)
-def healthz():
-    """Verifica si la app está viva"""
-    return "ok"
+
+def check_admin(token: str):
+    """Valida token de administrador."""
+    if token != ADMIN_TOKEN:
+        raise PermissionError("Token inválido o no autorizado.")
+
+
+# =============================
+# ENDPOINTS DEL PORTAL
+# =============================
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    """Página principal."""
+    return templates.TemplateResponse("portal.html", {"request": request})
+
+
+@app.get("/ingresar", response_class=HTMLResponse)
+def ingresar(request: Request, curp: str = Query(None)):
+    """Consulta diplomas por CURP."""
+    if not curp:
+        return templates.TemplateResponse("index.html", {"request": request})
+
+    conn = get_db_connection()
+    cur = conn.cursor(dictionary=True)
+
+    query = """
+        SELECT c.nombre AS curso, d.folio, d.estado, d.fecha_emision, d.pdf_url
+        FROM diploma d
+        JOIN alumno a ON d.alumno_id = a.alumno_id
+        JOIN curso c ON d.curso_id = c.curso_id
+        WHERE a.curp = %s
+        ORDER BY d.fecha_emision DESC
+    """
+    cur.execute(query, (curp,))
+    diplomas = cur.fetchall()
+    conn.close()
+
+    if not diplomas:
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Sin resultados",
+            "mensaje": f"No se encontraron diplomas para el CURP {curp}.",
+            "color": "var(--bad)"
+        })
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "curp": curp,
+        "diplomas": diplomas
+    })
+
 
 @app.get("/db_test", response_class=PlainTextResponse)
 def db_test():
-    """Verifica conexión con MySQL"""
+    """Prueba de conexión a MySQL."""
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT NOW()")
-        now = cursor.fetchone()[0]
+        cur = conn.cursor()
+        cur.execute("SELECT NOW()")
+        fecha = cur.fetchone()[0]
         conn.close()
-        return f"✅ Conectado correctamente a MySQL.\nFecha servidor: {now}"
+        return f"✅ Conectado correctamente a MySQL.\nFecha servidor: {fecha}"
     except Exception as e:
-        return f"⚠️ Error MySQL: {e}"
+        return f"❌ Error de conexión: {e}"
 
-# ============================================================
-# PORTAL PRINCIPAL
-# ============================================================
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request, token: str | None = Query(None)):
-    """Página principal del portal"""
-    ctx = {
-        "request": request,
-        "token": token if token == os.getenv("ADMIN_TOKEN") else None,
-        "now": datetime.now().year,
-        "title": "Portal Escolar · Verificación de Diplomas"
-    }
-    return templates.TemplateResponse("index.html", ctx)
 
-# ============================================================
-# VERIFICAR DIPLOMA POR FOLIO
-# ============================================================
-@app.get("/verificar", response_class=HTMLResponse)
-def verificar(request: Request, folio: str | None = Query(None)):
-    if not folio:
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Verificación de diploma",
-            "mensaje": "Debes ingresar un número de folio.",
-            "color": "var(--bad)"
-        })
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(dictionary=True)
-        cur.execute("""
-            SELECT d.folio, d.estado, d.fecha_emision, d.pdf_url, 
-                   a.nombre AS alumno, c.nombre AS curso
-            FROM diploma d
-            JOIN alumno a ON d.alumno_id = a.alumno_id
-            JOIN curso c ON d.curso_id = c.curso_id
-            WHERE d.folio = %s
-        """, (folio,))
-        row = cur.fetchone()
-        conn.close()
-
-        if not row:
-            return templates.TemplateResponse("mensaje.html", {
-                "request": request,
-                "titulo": "Folio no encontrado",
-                "mensaje": f"No se encontró el diploma con folio: {folio}",
-                "color": "var(--bad)"
-            })
-
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Diploma encontrado",
-            "mensaje": f"Diploma válido para {row['alumno']} ({row['curso']})",
-            "color": "var(--ok)",
-            "diplomas": [row]
-        })
-    except Exception as e:
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Error en la verificación",
-            "mensaje": str(e),
-            "color": "var(--bad)"
-        })
-
-# ============================================================
-# PORTAL DE ALUMNOS (BÚSQUEDA POR CURP)
-# ============================================================
-@app.get("/ingresar", response_class=HTMLResponse)
-def ingresar(request: Request, curp: str | None = Query(None)):
-    diplomas = []
-    if curp:
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor(dictionary=True)
-            cur.execute("""
-                SELECT d.folio, d.estado, d.fecha_emision, d.pdf_url, c.nombre AS curso
-                FROM diploma d
-                JOIN alumno a ON d.alumno_id = a.alumno_id
-                JOIN curso c ON d.curso_id = c.curso_id
-                WHERE a.curp = %s
-            """, (curp,))
-            diplomas = cur.fetchall()
-            conn.close()
-        except Exception as e:
-            return templates.TemplateResponse("mensaje.html", {
-                "request": request,
-                "titulo": "Error",
-                "mensaje": str(e),
-                "color": "var(--bad)"
-            })
-    return templates.TemplateResponse("portal.html", {
-        "request": request,
-        "curp": curp,
-        "diplomas": diplomas,
-        "now": datetime.now().year
-    })
-
-# ============================================================
-# ADMINISTRACIÓN
-# ============================================================
-def check_admin(token: str):
-    if token != os.getenv("ADMIN_TOKEN"):
-        raise HTTPException(status_code=401, detail="No autorizado")
+# =============================
+# ADMINISTRACIÓN: SINCRONIZACIÓN SUPABASE
+# =============================
 
 @app.get("/admin/sync", response_class=HTMLResponse)
 def admin_sync(request: Request, token: str = Query(...)):
-    """Sincroniza diplomas con Supabase"""
-    check_admin(token)
+    """Sincroniza rutas PDF desde Supabase y actualiza la base de datos."""
     try:
+        check_admin(token)
+
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
         conn = get_db_connection()
         cur = conn.cursor(dictionary=True)
-        cur.execute("""
-            SELECT a.nombre AS alumno, d.folio, d.pdf_url
-            FROM diploma d
-            JOIN alumno a ON d.alumno_id = a.alumno_id
-            WHERE d.pdf_url IS NOT NULL
-        """)
-        diplomas = cur.fetchall()
+
+        # Buscar diplomas sin URL asignada
+        cur.execute("SELECT diploma_id, pdf_path, folio FROM diploma WHERE pdf_url IS NULL OR pdf_url = ''")
+        sin_url = cur.fetchall()
+
+        if not sin_url:
+            conn.close()
+            return templates.TemplateResponse("mensaje.html", {
+                "request": request,
+                "titulo": "Sincronización completada",
+                "mensaje": "Todos los diplomas ya tienen URL asignada.",
+                "color": "var(--ok)"
+            })
+
+        actualizados = []
+        for d in sin_url:
+            nombre_pdf = os.path.basename(d["pdf_path"])
+            public_url = f"{SUPABASE_PUBLIC_BASE}/{nombre_pdf}"
+
+            try:
+                # Validar existencia en Supabase
+                response = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(nombre_pdf)
+                if response:
+                    cur.execute(
+                        "UPDATE diploma SET pdf_url=%s WHERE diploma_id=%s",
+                        (public_url, d["diploma_id"])
+                    )
+                    actualizados.append({
+                        "folio": d["folio"],
+                        "pdf_url": public_url
+                    })
+            except Exception as e:
+                print(f"⚠️ No encontrado en Supabase: {nombre_pdf} ({e})")
+
+        conn.commit()
         conn.close()
+
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Sincronización completada",
-            "mensaje": f"{len(diplomas)} diplomas verificados.",
+            "mensaje": f"{len(actualizados)} diplomas sincronizados correctamente.",
             "color": "var(--ok)",
-            "diplomas": diplomas
+            "diplomas": actualizados
+        })
+
+    except PermissionError as e:
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Acceso denegado",
+            "mensaje": str(e),
+            "color": "var(--bad)"
         })
     except Exception as e:
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
-            "titulo": "Error en sincronización",
+            "titulo": "Error de sincronización",
             "mensaje": str(e),
             "color": "var(--bad)"
         })
 
-@app.get("/admin/generar", response_class=HTMLResponse)
-def admin_generar(request: Request, token: str = Query(...)):
-    """Genera diplomas PDF automáticamente"""
-    check_admin(token)
+
+# =============================
+# DEBUG OPCIONAL
+# =============================
+
+@app.get("/debug/supabase", response_class=PlainTextResponse)
+def debug_supabase():
+    """Lista los archivos en el bucket de Supabase (solo para debug)."""
     try:
-        mod = importlib.import_module("auto_diplomas")
-        if hasattr(mod, "generar_diplomas_automatica"):
-            mod.generar_diplomas_automatica()
-        msg = "Diplomas generados correctamente."
-        color = "var(--ok)"
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        archivos = supabase.storage.from_(SUPABASE_BUCKET).list()
+        salida = "\n".join([f"- {f['name']}" for f in archivos])
+        return f"✅ Conectado a Supabase.\nArchivos encontrados:\n{salida}"
     except Exception as e:
-        msg = f"Error al generar: {e}"
-        color = "var(--bad)"
-    return templates.TemplateResponse("mensaje.html", {
-        "request": request,
-        "titulo": "Generación de diplomas",
-        "mensaje": msg,
-        "color": color
-    })
+        return f"❌ Error al conectar con Supabase: {e}"
+
+
+# =============================
+# INICIO LOCAL (solo debug)
+# =============================
+
+if __name__ == "__main__":
+    import uvicorn
+    print("✅ Templates encontrados correctamente")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
