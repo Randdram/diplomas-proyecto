@@ -128,22 +128,20 @@ def ingresar(request: Request, curp: str = Query(None)):
                 "color": "var(--bad)"
             })
 
-        # Procesar URLs de PDF
+        # Procesar URLs de PDF - IMPORTANTE: aceptar URLs de Supabase
         for d in diplomas:
-            # Si ya tiene una URL válida (local o remota), usarla tal cual
-            if d["pdf_url"] and (d["pdf_url"].startswith("/pdfs/") or d["pdf_url"].startswith("http")):
+            # Si tiene URL y empieza con http (Supabase), dejarla como está
+            if d["pdf_url"] and d["pdf_url"].startswith("http"):
                 pass  # Usar la URL tal cual
+            # Si tiene URL local /pdfs/, dejarla (para desarrollo local)
+            elif d["pdf_url"] and d["pdf_url"].startswith("/pdfs/"):
+                pass  # Usar la URL local tal cual
             # Si no tiene URL pero tiene ruta local, generar URL local
             elif not d["pdf_url"] and d["pdf_path"]:
                 pdf_name = os.path.basename(d["pdf_path"])
                 d["pdf_url"] = f"/pdfs/{pdf_name}"
-            # Si tiene URL remota pero no empieza con http o /pdfs/, limpiar
-            elif d["pdf_url"] and not d["pdf_url"].startswith(("http", "/pdfs/")):
-                if d["pdf_path"]:
-                    pdf_name = os.path.basename(d["pdf_path"])
-                    d["pdf_url"] = f"/pdfs/{pdf_name}"
-                else:
-                    d["pdf_url"] = None
+            else:
+                d["pdf_url"] = None
 
         return templates.TemplateResponse("portal.html", {
             "request": request,
