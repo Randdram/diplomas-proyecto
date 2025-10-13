@@ -1,8 +1,8 @@
-# api_verificacion.py - VERSIÓN COMPLETA CORREGIDA
+# api_verificacion.py - VERSIÓN COMPLETA PARA RENDER
 import os
 import mysql.connector
-from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
@@ -21,7 +21,7 @@ app = FastAPI(title="Diplomas Proyecto", version="1.0.0")
 
 templates = Jinja2Templates(directory="templates")
 
-# Variables de entorno (cargar DESPUÉS de load_dotenv())
+# Variables de entorno
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = int(os.getenv("DB_PORT", "3306")) if os.getenv("DB_PORT") else 3306
 DB_USER = os.getenv("DB_USER")
@@ -36,7 +36,6 @@ SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "diplomas")
 SUPABASE_PUBLIC_BASE = os.getenv("SUPABASE_PUBLIC_BASE")
 
 BASE_URL_VERIFICACION = os.getenv("BASE_URL_VERIFICACION", "http://localhost:8000")
-
 
 # =============================
 # FUNCIONES AUXILIARES
@@ -65,7 +64,7 @@ def check_admin(token: str):
 
 
 # =============================
-# ENDPOINTS DEL PORTAL
+# ENDPOINTS DEL PORTAL - MODIFICADOS PARA RENDER
 # =============================
 
 @app.get("/", response_class=HTMLResponse)
@@ -82,7 +81,7 @@ def home(request: Request):
 
 @app.get("/ingresar", response_class=HTMLResponse)
 def ingresar(request: Request, curp: str = Query(None)):
-    """Consulta diplomas por CURP."""
+    """Consulta diplomas por CURP - SOLO URLs de Supabase en producción."""
     if not curp:
         return templates.TemplateResponse("portal.html", {
             "request": request,
@@ -102,7 +101,6 @@ def ingresar(request: Request, curp: str = Query(None)):
     try:
         cur = conn.cursor(dictionary=True)
 
-        # ✅ CORREGIDO: LEFT JOIN para incluir diplomas sin curso
         query = """
             SELECT 
                 IFNULL(c.nombre, '—') AS curso,
@@ -129,31 +127,18 @@ def ingresar(request: Request, curp: str = Query(None)):
                 "color": "var(--bad)"
             })
 
-        # ✅✅✅ SECCIÓN CRÍTICA MEJORADA - Manejo robusto de URLs
+        # ✅✅✅ MODIFICACIÓN CRÍTICA PARA RENDER: Usar SOLO URLs de Supabase
         for d in diplomas:
-            url_actual = d["pdf_url"]
-            
-            # ✅ CORRECCIÓN: Si la URL contiene 'out\', limpiarla
-            if url_actual and "out\\" in url_actual:
-                d["pdf_url"] = url_actual.replace("out\\", "")
-                print(f"🔧 URL corregida: {url_actual} -> {d['pdf_url']}")
-            
-            # Si tiene URL válida (http/https o /pdfs/), dejarla
-            elif url_actual and (url_actual.startswith(("http://", "https://", "/pdfs/"))):
-                # URL ya está bien
+            # En producción, solo usar URLs que empiecen con http (Supabase)
+            if d["pdf_url"] and d["pdf_url"].startswith(("http://", "https://")):
+                # URL de Supabase - perfecto, usar tal cual
                 pass
-                
-            # Si no tiene URL pero tiene ruta, construirla
-            elif not url_actual and d["pdf_path"]:
-                pdf_name = os.path.basename(d["pdf_path"])
-                d["pdf_url"] = f"/pdfs/{pdf_name}"
-                print(f"🔧 URL construida desde ruta: {d['pdf_url']}")
-                
             else:
+                # Cualquier otra URL (local, vacía, etc.) se considera no disponible en producción
                 d["pdf_url"] = None
 
-            # ✅ DEBUG final
-            print(f"🔍 PDF final - Folio: {d['folio']}, URL: {d['pdf_url']}")
+            # Debug en producción
+            print(f"🔍 PRODUCCIÓN - Folio: {d['folio']}, URL: {d['pdf_url']}")
 
         return templates.TemplateResponse("portal.html", {
             "request": request,
@@ -175,7 +160,7 @@ def ingresar(request: Request, curp: str = Query(None)):
 
 @app.get("/verificar/{folio}", response_class=HTMLResponse)
 def verificar(request: Request, folio: str):
-    """Verifica un diploma por folio y muestra detalles."""
+    """Verifica un diploma por folio - SOLO URLs de Supabase en producción."""
     conn = get_db_connection()
     if not conn:
         return templates.TemplateResponse("mensaje.html", {
@@ -219,23 +204,13 @@ def verificar(request: Request, folio: str):
                 "color": "var(--bad)"
             })
 
-        # ✅ CORREGIDO: Procesar URL del PDF de forma consistente
-        url_actual = diploma["pdf_url"]
-        
-        # ✅ CORRECCIÓN: Si la URL contiene 'out\', limpiarla
-        if url_actual and "out\\" in url_actual:
-            diploma["download_url"] = url_actual.replace("out\\", "")
-            print(f"🔧 URL de descarga corregida: {url_actual} -> {diploma['download_url']}")
-        elif diploma["pdf_url"] and diploma["pdf_url"].startswith("http"):
+        # ✅ MODIFICACIÓN PARA RENDER: Solo URLs de Supabase
+        if diploma["pdf_url"] and diploma["pdf_url"].startswith(("http://", "https://")):
             diploma["download_url"] = diploma["pdf_url"]
-        elif diploma["pdf_path"]:
-            pdf_name = os.path.basename(diploma["pdf_path"])
-            diploma["download_url"] = f"/pdfs/{pdf_name}"
         else:
             diploma["download_url"] = None
 
-        # ✅ DEBUG: Mostrar en consola
-        print(f"🔍 Verificación - Folio: {folio}, URL: {diploma['download_url']}")
+        print(f"🔍 VERIFICACIÓN PRODUCCIÓN - Folio: {folio}, URL: {diploma['download_url']}")
 
         return templates.TemplateResponse("verificacion.html", {
             "request": request,
@@ -318,8 +293,7 @@ def db_test():
 
 @app.get("/pdfs-list", response_class=HTMLResponse)
 def pdfs_list(request: Request):
-    """Lista los PDFs disponibles en la carpeta out/"""
-    import os
+    """Lista los PDFs disponibles (solo para desarrollo local)"""
     try:
         out_dir = Path("out")
         pdfs = []
@@ -367,7 +341,7 @@ def pdfs_list(request: Request):
                 """
             html += "</tbody></table>"
         else:
-            html += "<p class='muted'>No hay PDFs disponibles en la carpeta out/</p>"
+            html += "<p class='muted'>No hay PDFs disponibles localmente. En producción use Supabase.</p>"
         
         html += """
                 </section>
@@ -388,7 +362,7 @@ def admin_generar(request: Request, token: str = Query(...)):
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Generador de PDFs",
-            "mensaje": "Para generar diplomas automáticamente, ejecuta localmente:<br><code>python generar_diplomas_simple.py</code>",
+            "mensaje": "Para generar diplomas automáticamente, ejecuta localmente:<br><code>python scripts/generar_diplomas.py</code>",
             "color": "var(--ok)"
         })
     except PermissionError as e:
@@ -429,7 +403,7 @@ def admin_sync(request: Request, token: str = Query(...)):
         cur.execute("""
             SELECT diploma_id, pdf_path, folio 
             FROM diploma 
-            WHERE pdf_url IS NULL OR pdf_url = ''
+            WHERE pdf_url IS NULL OR pdf_url = '' OR pdf_url NOT LIKE 'http%'
         """)
         sin_url = cur.fetchall()
 
@@ -438,7 +412,7 @@ def admin_sync(request: Request, token: str = Query(...)):
             return templates.TemplateResponse("mensaje.html", {
                 "request": request,
                 "titulo": "Sincronización completada",
-                "mensaje": "Todos los diplomas ya tienen URL asignada.",
+                "mensaje": "Todos los diplomas ya tienen URL de Supabase asignada.",
                 "color": "var(--ok)"
             })
 
@@ -456,6 +430,7 @@ def admin_sync(request: Request, token: str = Query(...)):
                     "folio": d["folio"],
                     "pdf_url": public_url
                 })
+                print(f"✅ Sincronizado: {d['folio']} -> {public_url}")
             except Exception as e:
                 print(f"⚠️ Error actualizando {d['folio']}: {e}")
 
@@ -465,7 +440,7 @@ def admin_sync(request: Request, token: str = Query(...)):
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Sincronización completada",
-            "mensaje": f"{len(actualizados)} diplomas sincronizados correctamente.",
+            "mensaje": f"{len(actualizados)} diplomas sincronizados con Supabase correctamente.",
             "color": "var(--ok)",
             "diplomas": actualizados
         })
@@ -493,15 +468,28 @@ def healthz():
 
 
 # =============================
-# MONTAR ARCHIVOS ESTÁTICOS Y PDFS
+# SERVICIO DE ARCHIVOS ESTÁTICOS - COMPATIBLE CON RENDER
 # =============================
 
-# IMPORTANTE: Los mounts van al final para no conflictuar con rutas dinámicas como /verificar/{folio}
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Servir archivos estáticos manualmente para compatibilidad con Render
+@app.get("/static/{file_path:path}")
+async def serve_static(file_path: str):
+    """Servir archivos estáticos manualmente"""
+    static_file = Path("static") / file_path
+    if static_file.exists():
+        return FileResponse(static_file)
+    raise HTTPException(status_code=404, detail="Archivo estático no encontrado")
 
-out_dir = Path("out")
-out_dir.mkdir(exist_ok=True)
-app.mount("/pdfs", StaticFiles(directory="out"), name="pdfs")
+@app.get("/pdfs/{file_path:path}")
+async def serve_pdfs(file_path: str):
+    """Servir PDFs locales (solo para desarrollo)"""
+    pdf_file = Path("out") / file_path
+    if pdf_file.exists():
+        return FileResponse(pdf_file, media_type='application/pdf')
+    else:
+        # En producción, redirigir a Supabase si es posible
+        print(f"📄 PDF no encontrado localmente en producción: {file_path}")
+        raise HTTPException(status_code=404, detail="PDF no disponible. Use Supabase URLs en producción.")
 
 
 # =============================
@@ -512,4 +500,5 @@ if __name__ == "__main__":
     import uvicorn
     print("✅ API Verificación iniciada correctamente")
     print(f"📊 Base de datos: {DB_HOST}:{DB_PORT}/{DB_NAME}")
+    print("🔧 Modo: Desarrollo Local")
     uvicorn.run(app, host="0.0.0.0", port=8000)
