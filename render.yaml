@@ -22,23 +22,41 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      
+      # Token de administrador
       - key: ADMIN_TOKEN
         value: GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8
+      
+      # Carpeta de salida de PDFs
       - key: SALIDA_PDFS
         value: out
 
       # === Configuración de base de datos Clever Cloud ===
-      - key: MYSQL_ADDON_HOST
+      - key: DB_HOST
         sync: false
-      - key: MYSQL_ADDON_DB
+      - key: DB_NAME
         sync: false
-      - key: MYSQL_ADDON_USER
+      - key: DB_USER
         sync: false
-      - key: MYSQL_ADDON_PASSWORD
+      - key: DB_PASSWORD
         sync: false
-      - key: MYSQL_ADDON_PORT
+      - key: DB_PORT
         value: 3306
 
-    # --- Opcional: health check ---
+      # === Configuración de Supabase (opcional, para sincronización de PDFs) ===
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: diplomas
+      - key: SUPABASE_PUBLIC_BASE
+        sync: false
+
+      # === URL base para verificación ===
+      - key: BASE_URL_VERIFICACION
+        sync: false
+
+    # --- Health check ---
     healthCheckPath: /healthz
     autoDeploy: true
