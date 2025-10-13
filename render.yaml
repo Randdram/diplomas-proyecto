@@ -1,8 +1,4 @@
-# =======================================================
-# render.yaml — configuración para Render.com
-# Proyecto: Portal Escolar · Diplomas
-# =======================================================
-
+# render.yaml - VERSIÓN MEJORADA
 services:
   - type: web
     name: diplomas-proyecto
@@ -10,53 +6,54 @@ services:
     plan: free
     region: oregon
 
-    # --- Comando para construir dependencias ---
     buildCommand: |
       pip install --upgrade pip
       pip install -r requirements.txt
 
-    # --- Comando para ejecutar la app ---
     startCommand: uvicorn api_verificacion:app --host 0.0.0.0 --port $PORT
 
-    # --- Variables de entorno ---
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       
-      # Token de administrador
+      # ✅ MEJOR: Usar variable generada en lugar de hardcodeada
       - key: ADMIN_TOKEN
-        value: GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8
+        generateValue: true
       
-      # Carpeta de salida de PDFs
       - key: SALIDA_PDFS
         value: out
 
-      # === Configuración de base de datos Clever Cloud ===
+      # Base de datos Clever Cloud
       - key: DB_HOST
-        sync: false
+        fromGroup: clever-cloud-db
       - key: DB_NAME
-        sync: false
+        fromGroup: clever-cloud-db
       - key: DB_USER
-        sync: false
+        fromGroup: clever-cloud-db
       - key: DB_PASSWORD
-        sync: false
+        fromGroup: clever-cloud-db
       - key: DB_PORT
         value: 3306
 
-      # === Configuración de Supabase (opcional, para sincronización de PDFs) ===
+      # Supabase
       - key: SUPABASE_URL
-        sync: false
+        fromGroup: supabase-config
       - key: SUPABASE_SERVICE_KEY
-        sync: false
+        fromGroup: supabase-config
       - key: SUPABASE_BUCKET
         value: diplomas
       - key: SUPABASE_PUBLIC_BASE
-        sync: false
+        fromGroup: supabase-config
 
-      # === URL base para verificación ===
+      # ✅ IMPORTANTE: Actualizar esta URL
       - key: BASE_URL_VERIFICACION
-        sync: false
+        value: https://diplomas-proyecto.onrender.com
 
-    # --- Health check ---
     healthCheckPath: /healthz
     autoDeploy: true
+
+envVarGroups:
+  - name: clever-cloud-db
+    description: Credenciales de Clever Cloud MySQL
+  - name: supabase-config
+    description: Configuración de Supabase Storage
