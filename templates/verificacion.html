@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verificación de Diploma</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <a class="logo" href="/"></a>
+      <a class="title" href="/">Portal Escolar</a>
+    </div>
+    <div class="links">
+      <a href="/ingresar">Alumnos</a>
+      <a href="/docs" target="_blank">API</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Verificación de Diploma</h1>
+    </section>
+
+    <section class="card">
+      <h3>{{ diploma.alumno }}</h3>
+      <table class="tbl">
+        <tr>
+          <td><strong>CURP:</strong></td>
+          <td><code>{{ diploma.curp }}</code></td>
+        </tr>
+        <tr>
+          <td><strong>Escuela:</strong></td>
+          <td>{{ diploma.escuela }}</td>
+        </tr>
+        <tr>
+          <td><strong>Curso:</strong></td>
+          <td>{{ diploma.curso }}</td>
+        </tr>
+        <tr>
+          <td><strong>Fecha de emisión:</strong></td>
+          <td>{{ diploma.fecha_emision }}</td>
+        </tr>
+        <tr>
+          <td><strong>Estado:</strong></td>
+          <td>
+            {% if diploma.estado == 'VALIDO' %}
+              <span class="badge ok">✓ Válido</span>
+            {% else %}
+              <span class="badge bad">✗ {{ diploma.estado }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Folio:</strong></td>
+          <td><code>{{ diploma.folio }}</code></td>
+        </tr>
+        <tr>
+          <td><strong>Hash SHA-256:</strong></td>
+          <td><code style="font-size:0.85rem;">{{ diploma.hash_sha256 }}</code></td>
+        </tr>
+      </table>
+
+      {% if diploma.pdf_url %}
+        <a class="btn brand" href="{{ diploma.pdf_url }}" target="_blank">⬇ Descargar PDF</a>
+      {% else %}
+        <p class="muted">⚠️ El PDF aún no está disponible para descargar.</p>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
