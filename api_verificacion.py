@@ -1,8 +1,8 @@
-# api_verificacion.py - VERSIÓN COMPLETA PARA RENDER
+# api_verificacion.py - VERSIÓN COMPLETA PARA PRODUCCIÓN
 import os
 import mysql.connector
 from fastapi import FastAPI, Request, Query, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
@@ -21,7 +21,7 @@ app = FastAPI(title="Diplomas Proyecto", version="1.0.0")
 
 templates = Jinja2Templates(directory="templates")
 
-# Variables de entorno
+# Variables de entorno (cargar DESPUÉS de load_dotenv())
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = int(os.getenv("DB_PORT", "3306")) if os.getenv("DB_PORT") else 3306
 DB_USER = os.getenv("DB_USER")
@@ -36,6 +36,9 @@ SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "diplomas")
 SUPABASE_PUBLIC_BASE = os.getenv("SUPABASE_PUBLIC_BASE")
 
 BASE_URL_VERIFICACION = os.getenv("BASE_URL_VERIFICACION", "http://localhost:8000")
+
+# Determinar si estamos en producción
+EN_PRODUCCION = os.getenv("RENDER", False) or "render.com" in os.getenv("BASE_URL_VERIFICACION", "")
 
 # =============================
 # FUNCIONES AUXILIARES
@@ -64,7 +67,7 @@ def check_admin(token: str):
 
 
 # =============================
-# ENDPOINTS DEL PORTAL - MODIFICADOS PARA RENDER
+# ENDPOINTS DEL PORTAL - MODIFICADOS PARA PRODUCCIÓN
 # =============================
 
 @app.get("/", response_class=HTMLResponse)
@@ -127,7 +130,7 @@ def ingresar(request: Request, curp: str = Query(None)):
                 "color": "var(--bad)"
             })
 
-        # ✅✅✅ MODIFICACIÓN CRÍTICA PARA RENDER: Usar SOLO URLs de Supabase
+        # ✅✅✅ MODIFICACIÓN CRÍTICA PARA PRODUCCIÓN: Usar SOLO URLs de Supabase
         for d in diplomas:
             # En producción, solo usar URLs que empiecen con http (Supabase)
             if d["pdf_url"] and d["pdf_url"].startswith(("http://", "https://")):
@@ -204,7 +207,7 @@ def verificar(request: Request, folio: str):
                 "color": "var(--bad)"
             })
 
-        # ✅ MODIFICACIÓN PARA RENDER: Solo URLs de Supabase
+        # ✅ MODIFICACIÓN PARA PRODUCCIÓN: Solo URLs de Supabase
         if diploma["pdf_url"] and diploma["pdf_url"].startswith(("http://", "https://")):
             diploma["download_url"] = diploma["pdf_url"]
         else:
@@ -461,6 +464,62 @@ def admin_sync(request: Request, token: str = Query(...)):
         })
 
 
+@app.get("/admin/auditar", response_class=HTMLResponse)
+def admin_auditar(request: Request, token: str = Query(...)):
+    """Auditoría de PDFs vs BD."""
+    try:
+        check_admin(token)
+        
+        conn = get_db_connection()
+        if not conn:
+            return templates.TemplateResponse("mensaje.html", {
+                "request": request,
+                "titulo": "Error",
+                "mensaje": "No se pudo conectar a la BD.",
+                "color": "var(--bad)"
+            })
+
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""
+            SELECT diploma_id, alumno_id, folio, pdf_path, hash_sha256
+            FROM diploma
+            ORDER BY diploma_id
+        """)
+        diplomas = cur.fetchall()
+        
+        resultados = []
+        for d in diplomas:
+            if d["pdf_path"] and os.path.exists(d["pdf_path"]):
+                estado = "✅ EXISTE"
+            else:
+                estado = "❌ NO EXISTE"
+            
+            resultados.append({
+                "diploma_id": d["diploma_id"],
+                "folio": d["folio"],
+                "pdf_path": d["pdf_path"],
+                "estado": estado
+            })
+
+        conn.close()
+
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Auditoría de PDFs",
+            "mensaje": f"Revisados {len(resultados)} diplomas.",
+            "color": "var(--ok)",
+            "diplomas": resultados
+        })
+
+    except PermissionError as e:
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Acceso denegado",
+            "mensaje": str(e),
+            "color": "var(--bad)"
+        })
+
+
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz():
     """Health check para Render."""
@@ -487,9 +546,24 @@ async def serve_pdfs(file_path: str):
     if pdf_file.exists():
         return FileResponse(pdf_file, media_type='application/pdf')
     else:
-        # En producción, redirigir a Supabase si es posible
+        # En producción, mostrar mensaje claro
         print(f"📄 PDF no encontrado localmente en producción: {file_path}")
-        raise HTTPException(status_code=404, detail="PDF no disponible. Use Supabase URLs en producción.")
+        raise HTTPException(status_code=404, detail="PDF no disponible localmente. Use Supabase URLs en producción.")
+
+
+# =============================
+# MONTAR ARCHIVOS ESTÁTICOS (para desarrollo local)
+# =============================
+
+# Solo montar archivos estáticos si estamos en desarrollo
+if not EN_PRODUCCION:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    out_dir = Path("out")
+    out_dir.mkdir(exist_ok=True)
+    app.mount("/pdfs", StaticFiles(directory="out"), name="pdfs")
+    print("🔧 Modo: DESARROLLO - Archivos estáticos montados")
+else:
+    print("🚀 Modo: PRODUCCIÓN - Usando solo Supabase")
 
 
 # =============================
@@ -500,5 +574,5 @@ if __name__ == "__main__":
     import uvicorn
     print("✅ API Verificación iniciada correctamente")
     print(f"📊 Base de datos: {DB_HOST}:{DB_PORT}/{DB_NAME}")
-    print("🔧 Modo: Desarrollo Local")
+    print(f"🔧 Modo: {'PRODUCCIÓN' if EN_PRODUCCION else 'DESARROLLO'}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
