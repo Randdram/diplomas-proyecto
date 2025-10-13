@@ -1,3 +1,4 @@
+# api_verificacion.py - VERSIÓN COMPLETA CORREGIDA
 import os
 import mysql.connector
 from fastapi import FastAPI, Request, Query
@@ -128,20 +129,31 @@ def ingresar(request: Request, curp: str = Query(None)):
                 "color": "var(--bad)"
             })
 
-        # Procesar URLs de PDF - IMPORTANTE: aceptar URLs de Supabase
+        # ✅✅✅ SECCIÓN CRÍTICA MEJORADA - Manejo robusto de URLs
         for d in diplomas:
-            # Si tiene URL y empieza con http (Supabase), dejarla como está
-            if d["pdf_url"] and d["pdf_url"].startswith("http"):
-                pass  # Usar la URL tal cual
-            # Si tiene URL local /pdfs/, dejarla (para desarrollo local)
-            elif d["pdf_url"] and d["pdf_url"].startswith("/pdfs/"):
-                pass  # Usar la URL local tal cual
-            # Si no tiene URL pero tiene ruta local, generar URL local
-            elif not d["pdf_url"] and d["pdf_path"]:
+            url_actual = d["pdf_url"]
+            
+            # ✅ CORRECCIÓN: Si la URL contiene 'out\', limpiarla
+            if url_actual and "out\\" in url_actual:
+                d["pdf_url"] = url_actual.replace("out\\", "")
+                print(f"🔧 URL corregida: {url_actual} -> {d['pdf_url']}")
+            
+            # Si tiene URL válida (http/https o /pdfs/), dejarla
+            elif url_actual and (url_actual.startswith(("http://", "https://", "/pdfs/"))):
+                # URL ya está bien
+                pass
+                
+            # Si no tiene URL pero tiene ruta, construirla
+            elif not url_actual and d["pdf_path"]:
                 pdf_name = os.path.basename(d["pdf_path"])
                 d["pdf_url"] = f"/pdfs/{pdf_name}"
+                print(f"🔧 URL construida desde ruta: {d['pdf_url']}")
+                
             else:
                 d["pdf_url"] = None
+
+            # ✅ DEBUG final
+            print(f"🔍 PDF final - Folio: {d['folio']}, URL: {d['pdf_url']}")
 
         return templates.TemplateResponse("portal.html", {
             "request": request,
@@ -207,14 +219,23 @@ def verificar(request: Request, folio: str):
                 "color": "var(--bad)"
             })
 
-        # Procesar URL del PDF
-        if diploma["pdf_url"] and diploma["pdf_url"].startswith("http"):
+        # ✅ CORREGIDO: Procesar URL del PDF de forma consistente
+        url_actual = diploma["pdf_url"]
+        
+        # ✅ CORRECCIÓN: Si la URL contiene 'out\', limpiarla
+        if url_actual and "out\\" in url_actual:
+            diploma["download_url"] = url_actual.replace("out\\", "")
+            print(f"🔧 URL de descarga corregida: {url_actual} -> {diploma['download_url']}")
+        elif diploma["pdf_url"] and diploma["pdf_url"].startswith("http"):
             diploma["download_url"] = diploma["pdf_url"]
         elif diploma["pdf_path"]:
             pdf_name = os.path.basename(diploma["pdf_path"])
             diploma["download_url"] = f"/pdfs/{pdf_name}"
         else:
             diploma["download_url"] = None
+
+        # ✅ DEBUG: Mostrar en consola
+        print(f"🔍 Verificación - Folio: {folio}, URL: {diploma['download_url']}")
 
         return templates.TemplateResponse("verificacion.html", {
             "request": request,
@@ -460,26 +481,6 @@ def admin_sync(request: Request, token: str = Query(...)):
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Error de sincronización",
-            "mensaje": str(e),
-            "color": "var(--bad)"
-        })
-
-
-@app.get("/admin/generar", response_class=HTMLResponse)
-def admin_generar(request: Request, token: str = Query(...)):
-    """Endpoint stub para generar PDFs. Redirige al usuario."""
-    try:
-        check_admin(token)
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Generador de PDFs",
-            "mensaje": "Para generar diplomas automáticamente, ejecuta: <code>python auto_diplomas.py</code> o <code>python generar_diplomas.py</code> localmente.",
-            "color": "var(--ok)"
-        })
-    except PermissionError as e:
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Acceso denegado",
             "mensaje": str(e),
             "color": "var(--bad)"
         })
