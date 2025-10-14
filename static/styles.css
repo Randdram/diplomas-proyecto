@@ -440,11 +440,90 @@ footer small {
   animation: fadeInUp 0.8s ease-out;
 }
 
-.pulse-soft {
-  animation: pulseSoft 3s ease-in-out infinite;
+/* ===== ESTILOS ESPECÍFICOS PARA PORTAL.HTML ===== */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-@keyframes pulseSoft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+.table th, .table td {
+  text-align: left;
+  padding: 12px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table th {
+  background: var(--gradient-primary);
+  font-weight: 600;
+  color: white;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Tags de estado específicos para portal */
+.tag[style*="background:rgba(34,197,94,.2)"] {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #a7f3d0;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.tag[style*="background:rgba(239,68,68,.2)"] {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Estilos responsive para portal */
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .btn {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .table th, .table td {
+    font-size: 14px;
+    padding: 10px 8px;
+  }
+}
+
+/* Header específico para portal */
+header.nav .wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Botón específico para folio en portal */
+.btn[style*="background:transparent"] {
+  background: transparent !important;
+  border: none !important;
+  color: var(--primary-light) !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+.btn[style*="background:transparent"]:hover {
+  color: var(--secondary) !important;
 }

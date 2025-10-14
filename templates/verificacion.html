@@ -7,9 +7,11 @@
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <div class="background-animation"></div>
+  
   <nav class="nav">
     <div class="brand">
-      <a class="logo" href="/"></a>
+      <a class="logo" href="/">🎓</a>
       <a class="title" href="/">Portal Escolar</a>
     </div>
     <div class="links">
@@ -62,8 +64,8 @@
         </tr>
       </table>
 
-      {% if diploma.pdf_url %}
-        <a class="btn brand" href="{{ diploma.pdf_url }}" target="_blank">⬇ Descargar PDF</a>
+      {% if diploma.download_url %}
+        <a class="btn brand" href="{{ diploma.download_url }}" target="_blank">⬇ Descargar PDF</a>
       {% else %}
         <p class="muted">⚠️ El PDF aún no está disponible para descargar.</p>
       {% endif %}
