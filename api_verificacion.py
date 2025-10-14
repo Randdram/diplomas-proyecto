@@ -1,4 +1,4 @@
-# api_verificacion.py - VERSIÓN COMPLETA PARA PRODUCCIÓN
+# api_verificacion.py - VERSIÓN CORREGIDA Y MEJORADA
 import os
 import mysql.connector
 from fastapi import FastAPI, Request, Query, HTTPException
@@ -296,8 +296,22 @@ def db_test():
 
 @app.get("/pdfs-list", response_class=HTMLResponse)
 def pdfs_list(request: Request):
-    """Lista los PDFs disponibles (solo para desarrollo local)"""
+    """Lista los PDFs disponibles - VERSIÓN CORREGIDA PARA PRODUCCIÓN"""
     try:
+        # En producción, mostrar información de Supabase
+        if EN_PRODUCCION:
+            return templates.TemplateResponse("mensaje.html", {
+                "request": request,
+                "titulo": "Índice de Diplomas",
+                "mensaje": "✅ En producción, los diplomas se almacenan en Supabase Storage.<br><br>"
+                          "📊 Para ver los diplomas disponibles:<br>"
+                          "1. Use la función de sincronización automática<br>"
+                          "2. O consulte directamente en <a href='https://supabase.com' target='_blank'>Supabase Storage</a><br><br>"
+                          "🔗 Los diplomas están disponibles mediante URLs públicas de Supabase.",
+                "color": "var(--ok)"
+            })
+        
+        # Código para desarrollo local
         out_dir = Path("out")
         pdfs = []
         if out_dir.exists():
@@ -313,7 +327,7 @@ def pdfs_list(request: Request):
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Índice de PDFs</title>
+            <title>Índice de PDFs Locales</title>
             <link rel="stylesheet" href="/static/styles.css">
         </head>
         <body>
@@ -325,8 +339,8 @@ def pdfs_list(request: Request):
             </nav>
             <main class="wrap">
                 <section class="hero">
-                    <h1>Índice de PDFs</h1>
-                    <p>Archivos disponibles en la carpeta out/</p>
+                    <h1>Índice de PDFs Locales</h1>
+                    <p>Archivos disponibles en la carpeta out/ (solo desarrollo)</p>
                 </section>
                 <section class="card">
         """
@@ -352,9 +366,15 @@ def pdfs_list(request: Request):
         </body>
         </html>
         """
-        return html
+        return HTMLResponse(content=html)
+        
     except Exception as e:
-        return f"<h1>Error</h1><p>{str(e)}</p>"
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Error",
+            "mensaje": f"Error al cargar el índice: {str(e)}",
+            "color": "var(--bad)"
+        })
 
 
 @app.get("/admin/generar", response_class=HTMLResponse)
@@ -459,6 +479,61 @@ def admin_sync(request: Request, token: str = Query(...)):
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Error de sincronización",
+            "mensaje": str(e),
+            "color": "var(--bad)"
+        })
+
+
+@app.get("/admin/sync-auto", response_class=HTMLResponse)
+def admin_sync_auto(request: Request, token: str = Query(...)):
+    """Sincronización automática mejorada - NUEVO ENDPOINT"""
+    try:
+        check_admin(token)
+        
+        # Ejecutar sincronización automática
+        try:
+            from sync_automatico import sync_automatico
+            resultado = sync_automatico()
+            
+            if "error" in resultado:
+                return templates.TemplateResponse("mensaje.html", {
+                    "request": request,
+                    "titulo": "Error en sincronización",
+                    "mensaje": f"Error: {resultado['error']}",
+                    "color": "var(--bad)"
+                })
+            
+            mensaje = f"""
+            <div style="text-align: left;">
+                <h3>📊 Resultados de Sincronización Automática:</h3>
+                <ul>
+                    <li>✅ Diplomas sincronizados: {resultado['sincronizados']}</li>
+                    <li>❌ Errores: {resultado['errores']}</li>
+                    <li>👥 Nuevos alumnos detectados: {resultado['nuevos_alumnos']}</li>
+                </ul>
+                <p><strong>Nota:</strong> Los nuevos alumnos necesitan generar diplomas manualmente.</p>
+            </div>
+            """
+            
+            return templates.TemplateResponse("mensaje.html", {
+                "request": request,
+                "titulo": "Sincronización Automática Completada",
+                "mensaje": mensaje,
+                "color": "var(--ok)"
+            })
+            
+        except ImportError:
+            return templates.TemplateResponse("mensaje.html", {
+                "request": request,
+                "titulo": "Función no disponible",
+                "mensaje": "El script de sincronización automática no está disponible.",
+                "color": "var(--bad)"
+            })
+            
+    except PermissionError as e:
+        return templates.TemplateResponse("mensaje.html", {
+            "request": request,
+            "titulo": "Acceso denegado",
             "mensaje": str(e),
             "color": "var(--bad)"
         })

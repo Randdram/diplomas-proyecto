@@ -87,18 +87,19 @@
 <body>
     <div class="card">
         <h1>{{ titulo }}</h1>
-        <p class="{% if color == 'var(--ok)' %}ok{% else %}bad{% endif %}">{{ mensaje }}</p>
+        <p class="{% if color == 'var(--ok)' %}ok{% else %}bad{% endif %}">{{ mensaje | safe }}</p>
 
-        <!-- Botón para volver a sincronizar -->
-        <button class="refresh-btn" onclick="window.location.href='/admin/sync?token=GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8'">
-            <span class="refresh-icon">↻</span> Volver a sincronizar
+        <!-- Botón para volver a sincronizar (solo mostrar en páginas relevantes) -->
+        {% if "sincronización" in titulo.lower() or "sync" in titulo.lower() %}
+        <button class="refresh-btn" onclick="window.location.href='/admin/sync-auto?token=GvfNb4GVZol2WcO5JBCR-aAJggi0dqXovif4pOQZH8'">
+            <span class="refresh-icon">↻</span> Sincronización Automática
         </button>
+        {% endif %}
 
         {% if diplomas %}
         <table>
             <thead>
                 <tr>
-                    <th>Alumno</th>
                     <th>Folio</th>
                     <th>URL del Diploma</th>
                 </tr>
@@ -106,8 +107,7 @@
             <tbody>
                 {% for d in diplomas %}
                 <tr>
-                    <td>{{ d.alumno }}</td>
-                    <td>{{ d.folio }}</td>
+                    <td><code>{{ d.folio }}</code></td>
                     <td><a href="{{ d.pdf_url }}" target="_blank">Ver diploma</a></td>
                 </tr>
                 {% endfor %}

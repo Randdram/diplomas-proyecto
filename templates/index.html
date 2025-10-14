@@ -53,8 +53,9 @@
       <h3>Herramientas de administración</h3>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn" href="/admin/generar?token={{ token }}">Generar PDFs</a>
-        <a class="btn" href="/admin/sync?token={{ token }}">Sincronizar a Supabase</a>
-        <a class="btn" href="/pdfs/">Ver índice de PDFs</a>
+        <a class="btn" href="/admin/sync-auto?token={{ token }}">Sincronización Automática</a>
+        <a class="btn" href="/admin/sync?token={{ token }}">Sincronizar Supabase</a>
+        <a class="btn" href="/pdfs-list">Ver Índice de PDFs</a>
       </div>
       <small>Solo tú deberías ver esto (requiere <code>token</code> válido).</small>
     </section>
