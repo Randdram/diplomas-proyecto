@@ -50,16 +50,17 @@
       <p>🎉 Consulta, valida y descarga tus reconocimientos académicos</p>
     </section>
 
-    <!-- Verificar por folio - FORMULARIO CORREGIDO -->
+    <!-- Verificar por folio -->
     <section class="card">
       <h3>🔍 Verificar por folio</h3>
-      <form method="get" onsubmit="handleFolioSubmit(event)" style="display: flex; gap: 10px; align-items: center;">
+      <form onsubmit="handleFolioSubmit(event)" style="display: flex; gap: 10px; align-items: center;">
         <input
           type="text"
           name="folio"
           placeholder="📝 Escribe tu folio aquí..."
           required
           style="flex: 1;"
+          oninput="updateAction(this)"
         />
         <button class="btn brand" type="submit">✨ Verificar</button>
       </form>
@@ -91,6 +92,9 @@
   <footer>
     <div class="wrap">
       <small>© {{ (now or 2025) }} Portal Escolar · Verificación de Diplomas · Hecho con ❤️</small>
+      {% if token %}
+      <br><small class="muted">Token: {{ token[:8] }}... (Admin activo)</small>
+      {% endif %}
     </div>
   </footer>
 </body>

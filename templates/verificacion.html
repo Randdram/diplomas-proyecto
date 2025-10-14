@@ -10,13 +10,15 @@
   <div class="background-animation"></div>
   
   <nav class="nav">
-    <div class="brand">
-      <a class="logo" href="/">🎓</a>
-      <a class="title" href="/">Portal Escolar</a>
-    </div>
-    <div class="links">
-      <a href="/ingresar">Alumnos</a>
-      <a href="/docs" target="_blank">API</a>
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo">🎓</div>
+        <div class="title">PortalEscolar</div>
+      </div>
+      <div class="links">
+        <a href="/ingresar">Alumnos</a>
+        <a href="/docs" target="_blank">API</a>
+      </div>
     </div>
   </nav>
 
@@ -27,47 +29,49 @@
 
     <section class="card">
       <h3>{{ diploma.alumno }}</h3>
-      <table class="tbl">
-        <tr>
-          <td><strong>CURP:</strong></td>
-          <td><code>{{ diploma.curp }}</code></td>
-        </tr>
-        <tr>
-          <td><strong>Escuela:</strong></td>
-          <td>{{ diploma.escuela }}</td>
-        </tr>
-        <tr>
-          <td><strong>Curso:</strong></td>
-          <td>{{ diploma.curso }}</td>
-        </tr>
-        <tr>
-          <td><strong>Fecha de emisión:</strong></td>
-          <td>{{ diploma.fecha_emision }}</td>
-        </tr>
-        <tr>
-          <td><strong>Estado:</strong></td>
-          <td>
-            {% if diploma.estado == 'VALIDO' %}
-              <span class="badge ok">✓ Válido</span>
-            {% else %}
-              <span class="badge bad">✗ {{ diploma.estado }}</span>
-            {% endif %}
-          </td>
-        </tr>
-        <tr>
-          <td><strong>Folio:</strong></td>
-          <td><code>{{ diploma.folio }}</code></td>
-        </tr>
-        <tr>
-          <td><strong>Hash SHA-256:</strong></td>
-          <td><code style="font-size:0.85rem;">{{ diploma.hash_sha256 }}</code></td>
-        </tr>
-      </table>
+      <div class="table-container">
+        <table class="tbl">
+          <tr>
+            <td><strong>CURP:</strong></td>
+            <td><code>{{ diploma.curp }}</code></td>
+          </tr>
+          <tr>
+            <td><strong>Escuela:</strong></td>
+            <td>{{ diploma.escuela }}</td>
+          </tr>
+          <tr>
+            <td><strong>Curso:</strong></td>
+            <td>{{ diploma.curso }}</td>
+          </tr>
+          <tr>
+            <td><strong>Fecha de emisión:</strong></td>
+            <td>{{ diploma.fecha_emision }}</td>
+          </tr>
+          <tr>
+            <td><strong>Estado:</strong></td>
+            <td>
+              {% if diploma.estado == 'VALIDO' %}
+                <span class="badge ok">✓ Válido</span>
+              {% else %}
+                <span class="badge bad">✗ {{ diploma.estado }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Folio:</strong></td>
+            <td><code>{{ diploma.folio }}</code></td>
+          </tr>
+          <tr>
+            <td><strong>Hash SHA-256:</strong></td>
+            <td><code style="font-size:0.85rem;">{{ diploma.hash_sha256 }}</code></td>
+          </tr>
+        </table>
+      </div>
 
-      {% if diploma.download_url %}
-        <a class="btn brand" href="{{ diploma.download_url }}" target="_blank">⬇ Descargar PDF</a>
+      {% if diploma.pdf_url %}
+        <a class="btn brand" href="{{ diploma.pdf_url }}" target="_blank" style="margin-top: 1.5rem; display: inline-block; min-width: 200px;">⬇ Descargar PDF</a>
       {% else %}
-        <p class="muted">⚠️ El PDF aún no está disponible para descargar.</p>
+        <p class="muted" style="margin-top: 1.5rem;">⚠️ El PDF aún no está disponible para descargar.</p>
       {% endif %}
     </section>
   </main>
