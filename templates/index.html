@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ title or "Portal Escolar · Verificación de Diplomas" }}</title>
   <link rel="stylesheet" href="/static/styles.css" />
+  <script>
+    function updateAction(input) {
+        const form = input.form;
+        const folio = input.value.trim();
+        if (folio) {
+            form.action = `/verificar/${encodeURIComponent(folio)}`;
+        } else {
+            form.action = '/verificar';
+        }
+    }
+  </script>
 </head>
 <body>
   <nav class="nav">
@@ -27,13 +38,14 @@
     <!-- Verificar por folio -->
     <section class="card">
       <h3>Verificar por folio</h3>
-      <form action="/verificar" method="get" style="display:flex; gap:10px; align-items:center;">
+      <form method="get" style="display:flex; gap:10px; align-items:center;">
         <input
           type="text"
           name="folio"
           placeholder="Escribe tu folio"
           required
           style="flex:1;"
+          oninput="updateAction(this)"
         />
         <button class="btn" type="submit">Verificar</button>
       </form>

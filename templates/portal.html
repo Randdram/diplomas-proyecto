@@ -61,6 +61,17 @@
       .table th, .table td { font-size: 14px; }
     }
   </style>
+  <script>
+    function updateAction(input) {
+        const form = input.form;
+        const folio = input.value.trim();
+        if (folio) {
+            form.action = `/verificar/${encodeURIComponent(folio)}`;
+        } else {
+            form.action = '/verificar';
+        }
+    }
+  </script>
 </head>
 <body>
   <header class="nav">
@@ -114,7 +125,17 @@
         {% for d in diplomas %}
           <tr>
             <td>{{ d.curso or '—' }}</td>
-            <td><code>{{ d.folio }}</code></td>
+            <td>
+              <form method="get" style="display:inline;" onsubmit="return false;">
+                <input type="hidden" name="folio" value="{{ d.folio }}">
+                <button type="button" 
+                        class="btn" 
+                        style="background:transparent; border:none; color:#58a6ff; text-decoration:underline; cursor:pointer; padding:0;"
+                        onclick="window.location.href='/verificar/{{ d.folio }}'">
+                  <code>{{ d.folio }}</code>
+                </button>
+              </form>
+            </td>
             <td>
               {% if d.estado == 'VALIDO' %}
                 <span class="tag" style="background:rgba(34,197,94,.2);">Válido</span>
