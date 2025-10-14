@@ -70,16 +70,6 @@ def check_admin(token: str):
 # ENDPOINTS DEL PORTAL - MODIFICADOS PARA PRODUCCIÓN
 # =============================
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    """Página principal - Solo para alumnos"""
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "title": "Portal Escolar · Acceso Alumnos", 
-        "now": datetime.now().year
-    })
-
-
 @app.get("/ingresar", response_class=HTMLResponse)
 def ingresar(request: Request, curp: str = Query(None)):
     """Consulta diplomas por CURP - SOLO URLs de Supabase en producción."""
@@ -150,7 +140,8 @@ def ingresar(request: Request, curp: str = Query(None)):
         })
 
     except Exception as e:
-        conn.close() if conn else None
+        if conn and conn.is_connected():
+            conn.close()
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Error",
@@ -220,7 +211,8 @@ def verificar(request: Request, folio: str):
         })
 
     except Exception as e:
-        conn.close() if conn else None
+        if conn and conn.is_connected():
+            conn.close()
         return templates.TemplateResponse("mensaje.html", {
             "request": request,
             "titulo": "Error",
@@ -271,7 +263,8 @@ def api_estado(folio: str):
         }
 
     except Exception as e:
-        conn.close() if conn else None
+        if conn and conn.is_connected():
+            conn.close()
         return {"error": str(e)}
 
 
@@ -371,26 +364,6 @@ def pdfs_list(request: Request):
             "request": request,
             "titulo": "Error",
             "mensaje": f"Error al cargar el índice: {str(e)}",
-            "color": "var(--bad)"
-        })
-
-
-@app.get("/admin/generar", response_class=HTMLResponse)
-def admin_generar(request: Request, token: str = Query(...)):
-    """Endpoint para generar PDFs. Muestra instrucciones."""
-    try:
-        check_admin(token)
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Generador de PDFs",
-            "mensaje": "Para generar diplomas automáticamente, ejecuta localmente:<br><code>python scripts/generar_diplomas.py</code>",
-            "color": "var(--ok)"
-        })
-    except PermissionError as e:
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Acceso denegado",
-            "mensaje": str(e),
             "color": "var(--bad)"
         })
 
@@ -607,6 +580,15 @@ def healthz():
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    """Página principal - Solo para alumnos"""
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "title": "Portal Escolar · Acceso Alumnos", 
+        "now": datetime.now().year
+    })
+
 @app.get("/admin-login", response_class=HTMLResponse)
 def admin_login(request: Request, error: str = None):
     """Página de login para administradores"""
@@ -663,7 +645,8 @@ def admin_panel(request: Request, token: str = Query(...)):
                 print(f"❌ Error obteniendo estadísticas: {e}")
                 sistema_estado = "⚠️"
             finally:
-                conn.close()
+                if conn and conn.is_connected():
+                    conn.close()
         else:
             sistema_estado = "❌"
         
@@ -749,3 +732,4 @@ if __name__ == "__main__":
     print(f"📊 Base de datos: {DB_HOST}:{DB_PORT}/{DB_NAME}")
     print(f"🔧 Modo: {'PRODUCCIÓN' if EN_PRODUCCION else 'DESARROLLO'}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
