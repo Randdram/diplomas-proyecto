@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🛠️ Panel de Administración</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script>
+    function updateAction(input) {
+        const form = input.form;
+        const folio = input.value.trim();
+        if (folio) {
+            form.action = `/verificar/${encodeURIComponent(folio)}`;
+        } else {
+            form.action = '/verificar';
+        }
+    }
+    
+    function handleFolioSubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const folioInput = form.querySelector('input[name="folio"]');
+        const folio = folioInput.value.trim();
+        
+        if (folio) {
+            window.location.href = `/verificar/${encodeURIComponent(folio)}`;
+        }
+    }
+
+    function confirmAction(message) {
+        return confirm(message || '¿Estás seguro de realizar esta acción?');
+    }
+  </script>
+</head>
+<body>
+  <div class="background-animation"></div>
+  
+  <nav class="nav">
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo">🛠️</div>
+        <div class="title">Panel Admin</div>
+      </div>
+      <div class="links">
+        <a href="/" class="muted">👤 Portal Alumnos</a>
+        <a href="/admin-logout" class="muted">🚪 Cerrar Sesión</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Panel de Administración</h1>
+      <p>Sistema completo de gestión de diplomas</p>
+    </section>
+
+    <!-- Verificación rápida por folio -->
+    <section class="card">
+      <h3>🔍 Verificación Rápida</h3>
+      <form onsubmit="handleFolioSubmit(event)" style="display: flex; gap: 10px; align-items: center;">
+        <input
+          type="text"
+          name="folio"
+          placeholder="📝 Ingresa folio para verificar..."
+          required
+          style="flex: 1;"
+          oninput="updateAction(this)"
+        />
+        <button class="btn brand" type="submit">✨ Verificar</button>
+      </form>
+      <p class="muted" style="margin-top: 10px;">Verifica cualquier diploma por su folio único</p>
+    </section>
+
+    <!-- Herramientas de administración -->
+    <section class="card">
+      <h3>🛠️ Herramientas del Sistema</h3>
+      
+      <div class="tools-grid">
+        <div class="tool-card">
+          <div class="tool-icon">📄</div>
+          <h4 style="margin: 0 0 0.5rem 0;">Generar Diplomas</h4>
+          <p class="muted" style="font-size: 0.9rem; margin: 0 0 1rem 0;">Crea diplomas PDF para nuevos alumnos</p>
+          <a class="btn" href="/admin/generar?token={{ token }}" style="display: block;">Acceder</a>
+        </div>
+        
+        <div class="tool-card">
+          <div class="tool-icon">🔄</div>
+          <h4 style="margin: 0 0 0.5rem 0;">Sincronización Auto</h4>
+          <p class="muted" style="font-size: 0.9rem; margin: 0 0 1rem 0;">Sincroniza con Supabase automáticamente</p>
+          <a class="btn" href="/admin/sync-auto?token={{ token }}" style="display: block;">Sincronizar</a>
+        </div>
+        
+        <div class="tool-card">
+          <div class="tool-icon">📊</div>
+          <h4 style="margin: 0 0 0.5rem 0;">Auditoría</h4>
+          <p class="muted" style="font-size: 0.9rem; margin: 0 0 1rem 0;">Ver reportes y auditoría del sistema</p>
+          <a class="btn" href="/admin/auditar?token={{ token }}" style="display: block;">Auditar</a>
+        </div>
+
+        <div class="tool-card">
+          <div class="tool-icon">☁️</div>
+          <h4 style="margin: 0 0 0.5rem 0;">Sincronizar Supabase</h4>
+          <p class="muted" style="font-size: 0.9rem; margin: 0 0 1rem 0;">Sincronización manual con cloud</p>
+          <a class="btn" href="/admin/sync?token={{ token }}" onclick="return confirmAction('¿Sincronizar con Supabase?')" style="display: block;">Sincronizar</a>
+        </div>
+
+        <div class="tool-card">
+          <div class="tool-icon">📋</div>
+          <h4 style="margin: 0 0 0.5rem 0;">Índice de PDFs</h4>
+          <p class="muted" style="font-size: 0.9rem; margin: 0 0 1rem 0;">Ver todos los archivos PDF locales</p>
+          <a class="btn" href="/pdfs-list" style="display: block;">Ver Índice</a>
+        </div>
+
+        <div class="tool-card">
+          <div class="tool-icon">👥</div>
+          <h4 style="margin: 0 0 0.5rem 0;">Portal Alumnos</h4>
+          <p class="muted" style="font-size: 0.9rem; margin: 0 0 1rem 0;">Ver como ven los alumnos el sistema</p>
+          <a class="btn" href="/ingresar" style="display: block;">Ver Portal</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Información del sistema -->
+    <section class="card" style="background: rgba(255,255,255,0.05);">
+      <h3>📈 Estado del Sistema</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-number">{{ total_alumnos or '0' }}</span>
+          <span class="stat-label">Alumnos Registrados</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">{{ total_diplomas or '0' }}</span>
+          <span class="stat-label">Diplomas Generados</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">{{ total_verificaciones or '0' }}</span>
+          <span class="stat-label">Verificaciones</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">{{ sistema_estado or '✅' }}</span>
+          <span class="stat-label">Estado Sistema</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Acciones rápidas -->
+    <section class="card">
+      <h3>⚡ Acciones Rápidas</h3>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a class="btn" href="/admin/sync-auto?token={{ token }}" onclick="return confirmAction('¿Ejecutar sincronización automática?')">
+          🔄 Sincronización Auto
+        </a>
+        <a class="btn" href="/admin/auditar?token={{ token }}">
+          📊 Auditoría Rápida
+        </a>
+        <a class="btn" href="/" target="_blank">
+          👀 Vista Alumno
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <small>© {{ (now or 2025) }} Panel de Administración · Sesión activa</small>
+      <br>
+      <small class="muted">Usuario: {{ admin_username or 'Administrador' }} · Último acceso: {{ last_login or 'Ahora' }}</small>
+    </div>
+  </footer>
+</body>
+</html>

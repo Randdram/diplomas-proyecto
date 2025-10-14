@@ -3,30 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title or "🎓 Portal Escolar · Verificación de Diplomas" }}</title>
+  <title>🎓 Portal Escolar · Acceso Alumnos</title>
   <link rel="stylesheet" href="/static/styles.css" />
-  <script>
-    function updateAction(input) {
-        const form = input.form;
-        const folio = input.value.trim();
-        if (folio) {
-            form.action = `/verificar/${encodeURIComponent(folio)}`;
-        } else {
-            form.action = '/verificar';
-        }
-    }
-    
-    function handleFolioSubmit(event) {
-        event.preventDefault();
-        const form = event.target;
-        const folioInput = form.querySelector('input[name="folio"]');
-        const folio = folioInput.value.trim();
-        
-        if (folio) {
-            window.location.href = `/verificar/${encodeURIComponent(folio)}`;
-        }
-    }
-  </script>
 </head>
 <body>
   <div class="background-animation"></div>
@@ -38,63 +16,93 @@
         <div class="title">PortalEscolar</div>
       </div>
       <div class="links">
-        <a href="/ingresar">👤 Alumnos</a>
-        <a href="/docs" target="_blank" rel="noopener">🔧 API</a>
+        <a href="/admin-login" class="muted">👨‍💼 Admin</a>
       </div>
     </div>
   </nav>
 
   <main class="wrap">
     <section class="hero floating">
-      <h1>Verificación de Diplomas</h1>
-      <p>🎉 Consulta, valida y descarga tus reconocimientos académicos</p>
+      <h1>Portal de Alumnos</h1>
+      <p>🎉 Consulta y descarga tus diplomas académicos</p>
     </section>
 
-    <!-- Verificar por folio -->
+    <!-- Acceso principal para alumnos -->
     <section class="card">
-      <h3>🔍 Verificar por folio</h3>
-      <form onsubmit="handleFolioSubmit(event)" style="display: flex; gap: 10px; align-items: center;">
+      <h3>👤 Consulta tus Diplomas</h3>
+      <p class="muted" style="margin-bottom: 1.5rem;">Ingresa tu CURP para ver y descargar tus diplomas</p>
+      
+      <form method="get" action="/ingresar" class="grid grid-2" autocomplete="off">
         <input
           type="text"
-          name="folio"
-          placeholder="📝 Escribe tu folio aquí..."
+          name="curp"
+          placeholder="📝 Escribe tu CURP aquí..."
           required
-          style="flex: 1;"
-          oninput="updateAction(this)"
+          style="background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); color:var(--txt); padding:14px 12px; border-radius:10px; outline:none;"
         />
-        <button class="btn brand" type="submit">✨ Verificar</button>
+        <button class="btn brand" type="submit">🚀 Buscar Diplomas</button>
       </form>
-      <p class="muted" style="margin-top: 10px;">Ejemplo: 7cdf9138-0bb2-4d4f-8100-175b40b220b8</p>
-    </section>
-
-    <!-- Acceso alumnos -->
-    <section class="card">
-      <h3>👥 Portal de Alumnos</h3>
-      <p>¿No recuerdas tu folio? Entra con tu CURP y descarga tus diplomas.</p>
-      <a class="btn brand" href="/ingresar">🚀 Entrar al Portal</a>
-    </section>
-
-    <!-- Herramientas admin -->
-    {% if token %}
-    <section class="card">
-      <h3>🛠️ Herramientas de Administración</h3>
-      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-        <a class="btn" href="/admin/generar?token={{ token }}">📄 Generar PDFs</a>
-        <a class="btn" href="/admin/sync-auto?token={{ token }}">🔄 Sincronización Automática</a>
-        <a class="btn" href="/admin/sync?token={{ token }}">☁️ Sincronizar Supabase</a>
-        <a class="btn" href="/pdfs-list">📋 Ver Índice</a>
+      
+      <div class="muted" style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 10px;">
+        <small>💡 <strong>¿Qué es la CURP?</strong><br>
+        Es tu Clave Única de Registro de Población. La encuentras en tu acta de nacimiento o documentos oficiales.</small>
       </div>
-      <p class="muted">🔒 Solo visible con token de administrador válido</p>
     </section>
-    {% endif %}
+
+    <!-- Información para alumnos -->
+    <section class="card">
+      <h3>📋 ¿Cómo consultar tus diplomas?</h3>
+      <div style="display: grid; gap: 1rem;">
+        <div style="display: flex; gap: 1rem; align-items: start;">
+          <div style="background: var(--primary); color: white; padding: 0.5rem; border-radius: 8px; min-width: 30px; text-align: center;">1</div>
+          <div>
+            <strong>Ingresa tu CURP</strong><br>
+            <small class="muted">En el campo de arriba escribe tu Clave Única de Registro de Población</small>
+          </div>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: start;">
+          <div style="background: var(--primary); color: white; padding: 0.5rem; border-radius: 8px; min-width: 30px; text-align: center;">2</div>
+          <div>
+            <strong>Revisa tus diplomas</strong><br>
+            <small class="muted">Verás la lista de todos tus diplomas disponibles</small>
+          </div>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: start;">
+          <div style="background: var(--primary); color: white; padding: 0.5rem; border-radius: 8px; min-width: 30px; text-align: center;">3</div>
+          <div>
+            <strong>Descarga o verifica</strong><br>
+            <small class="muted">Puedes descargar el PDF o verificar su autenticidad</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ejemplos de diplomas disponibles -->
+    <section class="card" style="background: rgba(255,255,255,0.05);">
+      <h3>🎓 Diplomas Disponibles</h3>
+      <p class="muted">Nuestro sistema incluye diplomas para:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <div style="text-align: center; padding: 1rem;">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">📚</div>
+          <small class="muted">Cursos Académicos</small>
+        </div>
+        <div style="text-align: center; padding: 1rem;">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏆</div>
+          <small class="muted">Reconocimientos</small>
+        </div>
+        <div style="text-align: center; padding: 1rem;">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">✅</div>
+          <small class="muted">Certificaciones</small>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>
     <div class="wrap">
-      <small>© {{ (now or 2025) }} Portal Escolar · Verificación de Diplomas · Hecho con ❤️</small>
-      {% if token %}
-      <br><small class="muted">Token: {{ token[:8] }}... (Admin activo)</small>
-      {% endif %}
+      <small>© {{ (now or 2025) }} Portal Escolar · Sistema de Diplomas Digitales</small>
+      <br>
+      <small class="muted">Versión 2.0 · Diseño Responsive</small>
     </div>
   </footer>
 </body>

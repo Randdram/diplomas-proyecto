@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🔐 Acceso Administrativo</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="background-animation"></div>
+  
+  <nav class="nav">
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo">🔐</div>
+        <div class="title">Acceso Admin</div>
+      </div>
+      <div class="links">
+        <a href="/" class="muted">👤 Volver a Alumnos</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Acceso Administrativo</h1>
+      <p>Área restringida para personal autorizado</p>
+    </section>
+
+    <section class="card">
+      <h3>🔒 Ingreso de Administrador</h3>
+      
+      <form method="post" action="/admin-auth" style="display: grid; gap: 1.5rem;">
+        <div>
+          <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Usuario:</label>
+          <input
+            type="text"
+            name="username"
+            placeholder="Nombre de usuario"
+            required
+            style="width: 100%;"
+          />
+        </div>
+        
+        <div>
+          <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Contraseña:</label>
+          <input
+            type="password"
+            name="password"
+            placeholder="Contraseña de acceso"
+            required
+            style="width: 100%;"
+          />
+        </div>
+
+        <button class="btn brand" type="submit" style="width: 100%;">🚀 Ingresar al Panel</button>
+      </form>
+
+      {% if error %}
+      <div style="margin-top: 1rem; padding: 1rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px;">
+        <span style="color: #fecaca;">❌ {{ error }}</span>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="card" style="background: rgba(255,255,255,0.05);">
+      <h4>⚠️ Información Importante</h4>
+      <p class="muted">Este acceso es exclusivo para personal autorizado del sistema de diplomas.</p>
+      <p class="muted">Si eres alumno, por favor usa el <a href="/" style="color: var(--primary-light);">portal principal</a>.</p>
+    </section>
+
+    <!-- Información de seguridad -->
+    <section class="card">
+      <h3>🛡️ Seguridad del Sistema</h3>
+      <div style="display: grid; gap: 1rem;">
+        <div style="display: flex; gap: 1rem; align-items: start;">
+          <div style="color: var(--success); font-size: 1.2rem;">✓</div>
+          <div>
+            <strong>Acceso Seguro</strong><br>
+            <small class="muted">Conexión encriptada y autenticación protegida</small>
+          </div>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: start;">
+          <div style="color: var(--success); font-size: 1.2rem;">✓</div>
+          <div>
+            <strong>Datos Protegidos</strong><br>
+            <small class="muted">Información de alumnos resguardada</small>
+          </div>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: start;">
+          <div style="color: var(--success); font-size: 1.2rem;">✓</div>
+          <div>
+            <strong>Backup Automático</strong><br>
+            <small class="muted">Respaldos regulares de la información</small>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <small>© {{ (now or 2025) }} Sistema Administrativo · Portal Escolar</small>
+    </div>
+  </footer>
+</body>
+</html>

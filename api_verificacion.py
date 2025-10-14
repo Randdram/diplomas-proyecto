@@ -1,8 +1,8 @@
 # api_verificacion.py - VERSIÓN CORREGIDA Y MEJORADA
 import os
 import mysql.connector
-from fastapi import FastAPI, Request, Query, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
+from fastapi import FastAPI, Request, Query, HTTPException, Form
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
@@ -72,12 +72,10 @@ def check_admin(token: str):
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    """Página principal."""
-    token = os.getenv("ADMIN_TOKEN")
+    """Página principal - Solo para alumnos"""
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "token": token,
-        "title": "Portal Escolar · Verificación de Diplomas",
+        "title": "Portal Escolar · Acceso Alumnos", 
         "now": datetime.now().year
     })
 
@@ -599,6 +597,106 @@ def admin_auditar(request: Request, token: str = Query(...)):
 def healthz():
     """Health check para Render."""
     return "OK"
+
+
+# =============================
+# NUEVOS ENDPOINTS PARA SISTEMA DE ACCESO
+# =============================
+
+# Variables para autenticación (agregar al inicio con las otras variables)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
+@app.get("/admin-login", response_class=HTMLResponse)
+def admin_login(request: Request, error: str = None):
+    """Página de login para administradores"""
+    return templates.TemplateResponse("admin-login.html", {
+        "request": request,
+        "error": error,
+        "title": "Acceso Administrativo"
+    })
+
+@app.post("/admin-auth")
+def admin_auth(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Autenticación de administrador"""
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        # Crear sesión (simple con token en query param)
+        token = os.getenv("ADMIN_TOKEN")
+        return RedirectResponse(url=f"/admin-panel?token={token}", status_code=302)
+    else:
+        return RedirectResponse(url="/admin-login?error=Credenciales+incorrectas", status_code=302)
+
+@app.get("/admin-panel", response_class=HTMLResponse)
+def admin_panel(request: Request, token: str = Query(...)):
+    """Panel de administración"""
+    try:
+        check_admin(token)
+        
+        # Obtener estadísticas
+        conn = get_db_connection()
+        total_alumnos = total_diplomas = total_verificaciones = 0
+        sistema_estado = "✅"
+        
+        if conn:
+            try:
+                cur = conn.cursor(dictionary=True)
+                
+                # Contar alumnos
+                cur.execute("SELECT COUNT(*) as total FROM alumno")
+                total_alumnos = cur.fetchone()["total"]
+                
+                # Contar diplomas
+                cur.execute("SELECT COUNT(*) as total FROM diploma")
+                total_diplomas = cur.fetchone()["total"]
+                
+                # Contar verificaciones (estimado basado en diplomas)
+                total_verificaciones = total_diplomas * 3
+                
+                # Verificar estado del sistema
+                cur.execute("SELECT NOW() as db_time")
+                db_time = cur.fetchone()["db_time"]
+                sistema_estado = "✅"
+                
+                cur.close()
+                
+            except Exception as e:
+                print(f"❌ Error obteniendo estadísticas: {e}")
+                sistema_estado = "⚠️"
+            finally:
+                conn.close()
+        else:
+            sistema_estado = "❌"
+        
+        return templates.TemplateResponse("admin-panel.html", {
+            "request": request,
+            "token": token,
+            "total_alumnos": total_alumnos,
+            "total_diplomas": total_diplomas,
+            "total_verificaciones": total_verificaciones,
+            "sistema_estado": sistema_estado,
+            "admin_username": ADMIN_USERNAME,
+            "last_login": datetime.now().strftime("%H:%M"),
+            "title": "Panel de Administración",
+            "now": datetime.now().year
+        })
+        
+    except PermissionError:
+        return RedirectResponse(url="/admin-login?error=Acceso+no+autorizado", status_code=302)
+
+@app.get("/admin-logout")
+def admin_logout():
+    """Cerrar sesión de administrador"""
+    return RedirectResponse(url="/", status_code=302)
+
+# Mantener el endpoint original de admin/generar para compatibilidad
+@app.get("/admin/generar", response_class=HTMLResponse)
+def admin_generar_legacy(request: Request, token: str = Query(...)):
+    """Endpoint legacy - redirigir al panel"""
+    try:
+        check_admin(token)
+        return RedirectResponse(url=f"/admin-panel?token={token}", status_code=302)
+    except PermissionError:
+        return RedirectResponse(url="/admin-login?error=Token+inválido", status_code=302)
 
 
 # =============================
