@@ -15,6 +15,17 @@
             form.action = '/verificar';
         }
     }
+    
+    function handleFolioSubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const folioInput = form.querySelector('input[name="folio"]');
+        const folio = folioInput.value.trim();
+        
+        if (folio) {
+            window.location.href = `/verificar/${encodeURIComponent(folio)}`;
+        }
+    }
   </script>
 </head>
 <body>
@@ -39,20 +50,20 @@
       <p>🎉 Consulta, valida y descarga tus reconocimientos académicos</p>
     </section>
 
-    <!-- Verificar por folio -->
+    <!-- Verificar por folio - FORMULARIO CORREGIDO -->
     <section class="card">
       <h3>🔍 Verificar por folio</h3>
-      <form method="get" class="grid grid-2">
+      <form method="get" onsubmit="handleFolioSubmit(event)" style="display: flex; gap: 10px; align-items: center;">
         <input
           type="text"
           name="folio"
           placeholder="📝 Escribe tu folio aquí..."
           required
-          oninput="updateAction(this)"
+          style="flex: 1;"
         />
         <button class="btn brand" type="submit">✨ Verificar</button>
       </form>
-      <p class="muted">Ejemplo: 7cdf9138-0bb2-4d4f-8100-175b40b220b8</p>
+      <p class="muted" style="margin-top: 10px;">Ejemplo: 7cdf9138-0bb2-4d4f-8100-175b40b220b8</p>
     </section>
 
     <!-- Acceso alumnos -->
