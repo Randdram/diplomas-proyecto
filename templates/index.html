@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title or "Portal Escolar · Verificación de Diplomas" }}</title>
+  <title>{{ title or "🎓 Portal Escolar · Verificación de Diplomas" }}</title>
   <link rel="stylesheet" href="/static/styles.css" />
   <script>
     function updateAction(input) {
@@ -18,64 +18,69 @@
   </script>
 </head>
 <body>
+  <div class="background-animation"></div>
+  
   <nav class="nav">
-    <div class="brand">
-      <a class="logo" href="/"></a>
-      <a class="title" href="/">Portal Escolar</a>
-    </div>
-    <div class="links">
-      <a href="/ingresar">Alumnos</a>
-      <a href="/docs" target="_blank" rel="noopener">API</a>
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo">🎓</div>
+        <div class="title">PortalEscolar</div>
+      </div>
+      <div class="links">
+        <a href="/ingresar">👤 Alumnos</a>
+        <a href="/docs" target="_blank" rel="noopener">🔧 API</a>
+      </div>
     </div>
   </nav>
 
   <main class="wrap">
-    <section class="hero">
+    <section class="hero floating">
       <h1>Verificación de Diplomas</h1>
-      <p>Consulta, valida y descarga tus reconocimientos.</p>
+      <p>🎉 Consulta, valida y descarga tus reconocimientos académicos</p>
     </section>
 
     <!-- Verificar por folio -->
     <section class="card">
-      <h3>Verificar por folio</h3>
-      <form method="get" style="display:flex; gap:10px; align-items:center;">
+      <h3>🔍 Verificar por folio</h3>
+      <form method="get" class="grid grid-2">
         <input
           type="text"
           name="folio"
-          placeholder="Escribe tu folio"
+          placeholder="📝 Escribe tu folio aquí..."
           required
-          style="flex:1;"
           oninput="updateAction(this)"
         />
-        <button class="btn" type="submit">Verificar</button>
+        <button class="btn brand" type="submit">✨ Verificar</button>
       </form>
-      <small>Ejemplo de folio: 7cdf9138-0bb2-4d4f-8100-175b40b220b8</small>
+      <p class="muted">Ejemplo: 7cdf9138-0bb2-4d4f-8100-175b40b220b8</p>
     </section>
 
     <!-- Acceso alumnos -->
     <section class="card">
-      <h3>Portal de Alumnos</h3>
-      <p>Si no recuerdas tu folio, entra con tu CURP y descarga tus diplomas.</p>
-      <a class="btn brand" href="/ingresar">Entrar</a>
+      <h3>👥 Portal de Alumnos</h3>
+      <p>¿No recuerdas tu folio? Entra con tu CURP y descarga tus diplomas.</p>
+      <a class="btn brand" href="/ingresar">🚀 Entrar al Portal</a>
     </section>
 
-    <!-- Herramientas admin (opcionales, solo se dibujan si llega token) -->
+    <!-- Herramientas admin -->
     {% if token %}
     <section class="card">
-      <h3>Herramientas de administración</h3>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a class="btn" href="/admin/generar?token={{ token }}">Generar PDFs</a>
-        <a class="btn" href="/admin/sync-auto?token={{ token }}">Sincronización Automática</a>
-        <a class="btn" href="/admin/sync?token={{ token }}">Sincronizar Supabase</a>
-        <a class="btn" href="/pdfs-list">Ver Índice de PDFs</a>
+      <h3>🛠️ Herramientas de Administración</h3>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a class="btn" href="/admin/generar?token={{ token }}">📄 Generar PDFs</a>
+        <a class="btn" href="/admin/sync-auto?token={{ token }}">🔄 Sincronización Automática</a>
+        <a class="btn" href="/admin/sync?token={{ token }}">☁️ Sincronizar Supabase</a>
+        <a class="btn" href="/pdfs-list">📋 Ver Índice</a>
       </div>
-      <small>Solo tú deberías ver esto (requiere <code>token</code> válido).</small>
+      <p class="muted">🔒 Solo visible con token de administrador válido</p>
     </section>
     {% endif %}
   </main>
 
-  <footer class="wrap" style="margin-top:32px; opacity:.7;">
-    <small>© {{ (now or 2025) }} Portal Escolar · Verificación de Diplomas</small>
+  <footer>
+    <div class="wrap">
+      <small>© {{ (now or 2025) }} Portal Escolar · Verificación de Diplomas · Hecho con ❤️</small>
+    </div>
   </footer>
 </body>
 </html>
