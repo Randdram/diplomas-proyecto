@@ -1,14 +1,19 @@
-# =========================
 #!/usr/bin/env python3
 """
 Generador de diplomas (overlay sobre tu PDF de diseño)
 - Dibuja SOLAMENTE: Nombre, QR y Folio
-- Guarda un PDF por alumno, lo sube a Supabase y registra todo en MySQL
+- Guarda un PDF por alumno y registra todo en MySQL
 
 Uso rápido:
+  python generar_diplomas.py --calibrar
   python generar_diplomas.py --alumno_id 1
-"""
+  python generar_diplomas.py --curso_id 1 --fecha "2025-09-30"
 
+Requiere:
+  - Python 3.10+
+  - pip install -r requirements.txt
+  - .env con tus credenciales (ver .env.example)
+"""
 import os, io, hashlib, uuid, argparse, datetime as dt
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -18,12 +23,9 @@ import mysql.connector as mysql
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+from reportlab.lib.pagesizes import letter
 import qrcode
-
-# ===================== INICIA CAMBIO #1 =====================
-# Importamos la función para subir archivos a Supabase
-from storage_supabase import upload_pdf
-# ===================== TERMINA CAMBIO #1 =====================
+from storage_supabase import upload_pdf # Importa la función de subida
 
 # Carga variables de entorno (host, usuario, contraseña, etc.)
 load_dotenv()
@@ -34,7 +36,7 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("DB_NAME", "escuela_compu")
 
-PLANTILLA_PDF = os.getenv("PLANTILLA_PDF", "RECONOCIMIENTOv2.pdf")
+PLANTILLA_PDF = os.getenv("PLANTILLA_PDF", "reconocimientoo.pdf") # Actualizado por si acaso
 SALIDA_PDFS = os.getenv("SALIDA_PDFS", "out")
 BASE_URL_VERIFICACION = os.getenv("BASE_URL_VERIFICACION", "http://localhost:8000")
 
@@ -46,11 +48,27 @@ os.makedirs(SALIDA_PDFS, exist_ok=True)
 # =========================
 @dataclass
 class Posiciones:
-    nombre_xy: Tuple[float, float]      = (421, 315)
+    """
+    Coordenadas en puntos (1 pt = 1/72 in).
+    Origen (0,0) = ESQUINA INFERIOR IZQUIERDA de la página.
+
+    Ajusta estos valores para calibrar la posición del texto.
+    Disminuir 'Y' mueve el texto hacia ABAJO.
+    """
+    # Aumentamos el valor de Y para subir el texto y que quede sobre la línea
+    nombre_xy: Tuple[float, float]      = (421, 322)
     qr_xy: Tuple[float, float]          = (710,  60)
+    coordinador_xy: Tuple[float, float] = (421, 120)
+    fecha_xy: Tuple[float, float]       = (421, 60)
+
+    # Tamaños de fuente
     font_nombre: int = 34
+    font_coordinador: int = 16
+    font_fecha: int  = 14
+
 
 POS = Posiciones()
+
 
 # =========================
 #  UTILIDADES
@@ -63,27 +81,26 @@ def conectar_db():
 def leer_tamano_pagina(pdf_path: str) -> Tuple[float, float]:
     reader = PdfReader(pdf_path)
     page = reader.pages[0]
-    return float(page.mediabox.width), float(page.mediabox.height)
+    width = float(page.mediabox.width)
+    height = float(page.mediabox.height)
+    return width, height
 
 def crear_overlay(page_size: Tuple[float, float], draw_fn):
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=page_size)
     draw_fn(c)
+    c.showPage()
     c.save()
-    buf.seek(0)
-    return buf
+    return buf.getvalue()
 
-def fusionar_con_plantilla(overlay_buf: io.BytesIO, plantilla_path: str, salida_path: str):
+def fusionar_con_plantilla(overlay_bytes: bytes, plantilla_path: str, salida_path: str):
     template_reader = PdfReader(plantilla_path)
     page = template_reader.pages[0]
-
-    overlay_reader = PdfReader(overlay_buf)
+    overlay_reader = PdfReader(io.BytesIO(overlay_bytes))
     overlay_page = overlay_reader.pages[0]
-
     page.merge_page(overlay_page)
     writer = PdfWriter()
     writer.add_page(page)
-
     with open(salida_path, "wb") as f:
         writer.write(f)
 
@@ -97,74 +114,110 @@ def generar_qr_bytes(url: str, box_size: int = 8) -> bytes:
     bio.seek(0)
     return bio.getvalue()
 
+def formato_fecha_es(fecha: dt.date) -> str:
+    """Formatea la fecha a 'Toluca, Estado de México, a DD de MES de AAAA'"""
+    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    return f"Toluca, Estado de México, a {fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
+
+
 # =========================
 #  LÓGICA PRINCIPAL
 # =========================
-def generar_diploma_para_alumno(cursor, alumno_id: int, ciclo: str, fecha_emision: dt.date, curso_id: Optional[int] = None):
-    cursor.execute("""
-      SELECT a.nombre FROM alumno a WHERE a.alumno_id=%s
-    """, (alumno_id,))
-    row = cursor.fetchone()
-    if row is None:
+def generar_diploma_para_alumno(cursor, alumno_id: int, fecha_emision: dt.date, curso_id: Optional[int] = None):
+    # 1) Trae datos del alumno
+    cursor.execute("SELECT nombre, escuela_id FROM alumno WHERE alumno_id=%s", (alumno_id,))
+    alumno_row = cursor.fetchone()
+    if alumno_row is None:
         raise ValueError(f"Alumno {alumno_id} no encontrado")
-    alumno_nombre = row[0]
+    alumno_nombre = alumno_row['nombre']
+    escuela_id = alumno_row['escuela_id']
 
+    # Lógica robusta para obtener el coordinador/profesor
+    nombre_profesor = "Coordinador de Aula" # Valor por defecto
+    profesor_id_para_diploma = None # Valor por defecto
+
+    if curso_id:
+        try:
+            # Intenta buscar al profesor asociado al curso
+            cursor.execute("SELECT p.profesor_id, p.nombre FROM profesor p JOIN curso c ON p.profesor_id = c.profesor_id WHERE c.curso_id=%s", (curso_id,))
+            profesor_row = cursor.fetchone()
+            if profesor_row:
+                profesor_id_para_diploma = profesor_row['profesor_id']
+                nombre_profesor = profesor_row['nombre']
+        except mysql.errors.ProgrammingError as e:
+            # Si hay un error de SQL (como una tabla que no existe), lo ignora y usa los valores por defecto
+            print(f"Aviso de base de datos: {e}. Se usará un nombre genérico.")
+            pass
+
+
+    # 3) Genera folio y URL de verificación
     folio = str(uuid.uuid4())
     url_verificacion = f"{BASE_URL_VERIFICACION}/verificar/{folio}"
+
+    # 4) Prepara QR
     qr_png = generar_qr_bytes(url_verificacion)
     qr_img = ImageReader(io.BytesIO(qr_png))
 
+    # 5) Tamaño de la plantilla
     W, H = leer_tamano_pagina(PLANTILLA_PDF)
 
+    # 6) Dibujo del overlay
     def draw(c):
-        c.saveState()
-        c.setFillColorRGB(1, 1, 1)
-        c.rect(110, 302, 620, 34, fill=1, stroke=0)
-        c.restoreState()
+        # (A) NOMBRE DEL ALUMNO
         c.setFont("Helvetica-Bold", POS.font_nombre)
         c.drawCentredString(POS.nombre_xy[0], POS.nombre_xy[1], alumno_nombre)
+
+        # (B) NOMBRE DEL PROFESOR (ahora dinámico)
+        c.setFont("Helvetica", POS.font_coordinador)
+        c.drawCentredString(POS.coordinador_xy[0], POS.coordinador_xy[1], nombre_profesor)
+
+        # (C) FECHA EN ESPAÑOL
+        fecha_texto = formato_fecha_es(fecha_emision)
+        c.setFont("Helvetica", POS.font_fecha)
+        c.drawCentredString(POS.fecha_xy[0], POS.fecha_xy[1], fecha_texto)
+
+        # (D) QR (120x120 px)
         c.drawImage(qr_img, POS.qr_xy[0], POS.qr_xy[1], width=120, height=120, mask='auto')
+
+        # (E) Folio
         c.setFont("Helvetica", 8)
         c.drawRightString(W - 24, 18, f"Folio: {folio}")
 
-    overlay_buf = crear_overlay((W, H), draw)
-    
-    salida_path = os.path.join(SALIDA_PDFS, f"DIPLOMA_{alumno_id}_{folio}.pdf")
-    fusionar_con_plantilla(overlay_buf, PLANTILLA_PDF, salida_path)
+    overlay = crear_overlay((W, H), draw)
 
+    # 7) Fusiona y guarda
+    salida_path = os.path.join(SALIDA_PDFS, f"DIPLOMA_{alumno_id}_{folio}.pdf")
+    fusionar_con_plantilla(overlay, PLANTILLA_PDF, salida_path)
+
+    # 7.1) SUBIR A SUPABASE
+    public_url = None
+    try:
+        pdf_name = os.path.basename(salida_path)
+        public_url = upload_pdf(salida_path, dest_name=pdf_name)
+        print(f"  - [Supabase] Subido exitosamente a: {public_url}")
+    except Exception as e:
+        print(f"  - [ERROR SUPABASE] No se pudo subir el archivo '{pdf_name}': {e}")
+
+    # 8) Calcula hash
     with open(salida_path, "rb") as f:
         pdf_bytes = f.read()
     sha = hashlib.sha256(pdf_bytes).hexdigest()
 
-    # ===================== INICIA CAMBIO #2 =====================
-    # Subir a Supabase inmediatamente después de crear el PDF
-    public_url = None
-    try:
-        pdf_name = os.path.basename(salida_path)
-        # El `dest_name` en Supabase no necesita la carpeta 'diplomas/' si tu función `upload_pdf` ya la gestiona
-        public_url = upload_pdf(salida_path, dest_name=pdf_name)
-        print(f"  - [Supabase] ✅ Subido exitosamente a: {public_url}")
-    except Exception as e:
-        print(f"  - [Supabase] ❌ ERROR al subir '{pdf_name}': {e}")
-    # ===================== TERMINA CAMBIO #2 =====================
-
-
-    # ===================== INICIA CAMBIO #3 =====================
-    # Modificar la inserción en la BD para incluir la pdf_url
+    # 9) Inserta registro en la BD
+    # Nota: Se usa 'profesor_id_para_diploma' en la columna 'coordinador_id'
     cursor.execute("""
-      INSERT INTO diploma (alumno_id, curso_id, folio, ciclo, fecha_emision, hash_sha256, estado, pdf_path, pdf_url)
+      INSERT INTO diploma (alumno_id, curso_id, coordinador_id, folio, fecha_emision, hash_sha256, estado, pdf_path, pdf_url)
       VALUES (%s, %s, %s, %s, %s, %s, 'VALIDO', %s, %s)
-    """, (alumno_id, curso_id, folio, ciclo, fecha_emision, sha, salida_path, public_url))
-    # ===================== TERMINA CAMBIO #3 =====================
+    """, (alumno_id, curso_id, profesor_id_para_diploma, folio, fecha_emision, sha, salida_path, public_url))
 
-    return folio, salida_path, sha, public_url
-
+    return folio, salida_path, sha
 
 def main():
-    parser = argparse.ArgumentParser(description="Generador de Diplomas con subida automática a Supabase")
+    parser = argparse.ArgumentParser(description="Generador de Diplomas")
+    parser.add_argument("--calibrar", action="store_true", help="Genera PDF con cuadrícula para calibrar")
     parser.add_argument("--curso_id", type=int, help="Generar para todos los alumnos de este curso")
     parser.add_argument("--alumno_id", type=int, help="Generar solo para un alumno")
-    parser.add_argument("--ciclo", type=str, default="2024-2025", help="Ciclo escolar")
+    # Si no se provee la fecha, se usa la del día de hoy
     parser.add_argument("--fecha", type=str, default=dt.date.today().isoformat(), help="Fecha de emisión YYYY-MM-DD")
     args = parser.parse_args()
 
@@ -173,29 +226,41 @@ def main():
     conn = conectar_db()
     conn.autocommit = False
     try:
-        cur = conn.cursor()
+        cur = conn.cursor(dictionary=True)
+
         if args.alumno_id:
-            alumnos = [args.alumno_id]
+            alumnos = [{'alumno_id': args.alumno_id}]
         elif args.curso_id:
             cur.execute("SELECT alumno_id FROM inscripcion WHERE curso_id=%s", (args.curso_id,))
-            alumnos = [r[0] for r in cur.fetchall()]
+            alumnos = cur.fetchall()
         else:
-            print("❌ Error: Debes especificar --alumno_id o --curso_id.")
-            return
+            cur.execute("SELECT alumno_id FROM alumno")
+            alumnos = cur.fetchall()
 
         print(f"Generando diplomas para {len(alumnos)} alumno(s)...")
-        for aid in alumnos:
-            folio, path, sha, url = generar_diploma_para_alumno(cur, aid, args.ciclo, fecha_emision, args.curso_id)
-            print(f"  - Alumno {aid} -> {path} | sha256={sha[:12]}…")
+        for alumno_data in alumnos:
+            aid = alumno_data['alumno_id']
+            # Para la lógica del profesor, es crucial pasar el curso_id si está disponible.
+            # Si se ejecuta para todos, el curso_id será None y se usará el nombre por defecto.
+            current_curso_id = args.curso_id
+            if not current_curso_id:
+                # Si no se especifica un curso, intentamos buscar uno para el alumno
+                cur.execute("SELECT curso_id FROM inscripcion WHERE alumno_id=%s LIMIT 1", (aid,))
+                inscripcion_row = cur.fetchone()
+                if inscripcion_row:
+                    current_curso_id = inscripcion_row['curso_id']
+
+            folio, path, sha = generar_diploma_para_alumno(cur, aid, fecha_emision, current_curso_id)
+            print(f"  - Alumno {aid} -> {path} | folio={folio[:8]}…")
 
         conn.commit()
-        print("\n[OK] 🎉 Proceso completado. Revisa la base de datos y tu bucket de Supabase.")
+        print("[OK] Listo. Revisa la carpeta de salida y la tabla 'diploma'.")
     except Exception as e:
         conn.rollback()
-        print(f"\n[ERROR] ❌ Ocurrió un error: {e}")
+        raise
     finally:
-        if conn and conn.is_connected():
-            conn.close()
+        conn.close()
 
 if __name__ == "__main__":
     main()
+
