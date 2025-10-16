@@ -1,14 +1,18 @@
-# api_verificacion.py - VERSIÓN FINAL CORREGIDA
+# api_verificacion.py - VERSIÓN CON CARGA DE CSV Y GENERACIÓN WEB
 import os
 import mysql.connector
-from fastapi import FastAPI, Request, Query, HTTPException, Form
+import csv
+import io
+from fastapi import FastAPI, Request, Query, HTTPException, Form, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
-from supabase import create_client
+
+# Importamos la lógica de generación de diplomas como un módulo
+import generar_diplomas as gen
 
 # ✅ CARGAR VARIABLES DE ENTORNO DESDE .env
 load_dotenv()
@@ -17,7 +21,7 @@ load_dotenv()
 # CONFIGURACIÓN PRINCIPAL
 # =============================
 
-app = FastAPI(title="Diplomas Proyecto", version="1.0.0")
+app = FastAPI(title="Diplomas Proyecto", version="2.0.0")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -31,14 +35,6 @@ DB_NAME = os.getenv("DB_NAME")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "diplomas")
-SUPABASE_PUBLIC_BASE = os.getenv("SUPABASE_PUBLIC_BASE")
-
-BASE_URL_VERIFICACION = os.getenv("BASE_URL_VERIFICACION", "http://localhost:8000")
-EN_PRODUCCION = os.getenv("RENDER", False) or "render.com" in os.getenv("BASE_URL_VERIFICACION", "")
 
 # =============================
 # FUNCIONES AUXILIARES
@@ -59,134 +55,51 @@ def check_admin(token: str):
         raise PermissionError("Token inválido o no autorizado.")
 
 # =============================
-# ENDPOINTS DEL PORTAL
+# ENDPOINTS DEL PORTAL 
 # =============================
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {
-        "request": request,
-        "title": "Portal Escolar · Acceso Alumnos", 
-        "now": datetime.now().year
+        "request": request, "title": "Portal Escolar · Acceso Alumnos", "now": datetime.now().year
     })
 
 @app.get("/ingresar", response_class=HTMLResponse)
 def ingresar(request: Request, curp: str = Query(None)):
     if not curp:
         return templates.TemplateResponse("portal.html", {"request": request, "title": "Portal de Alumnos", "now": datetime.now().year})
-
     conn = get_db_connection()
     if not conn:
         return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Error de conexión", "mensaje": "No se pudo conectar a la base de datos.", "color": "var(--bad)"})
-
     try:
         cur = conn.cursor(dictionary=True)
-        query = """
-            SELECT IFNULL(c.nombre, '—') AS curso, d.folio, d.estado, d.fecha_emision, d.pdf_url, d.pdf_path
-            FROM diploma d JOIN alumno a ON d.alumno_id = a.alumno_id
-            LEFT JOIN curso c ON d.curso_id = c.curso_id
-            WHERE a.curp = %s ORDER BY d.fecha_emision DESC
-        """
+        query = "SELECT IFNULL(c.nombre, '—') AS curso, d.folio, d.estado, d.fecha_emision, d.pdf_url FROM diploma d JOIN alumno a ON d.alumno_id = a.alumno_id LEFT JOIN curso c ON d.curso_id = c.curso_id WHERE a.curp = %s ORDER BY d.fecha_emision DESC"
         cur.execute(query, (curp,))
         diplomas = cur.fetchall()
-        
         for d in diplomas:
             if not (d.get("pdf_url") and d["pdf_url"].startswith("http")):
                 d["pdf_url"] = None
-        
         return templates.TemplateResponse("portal.html", {"request": request, "curp": curp, "diplomas": diplomas, "title": "Portal de Alumnos", "now": datetime.now().year})
-    except Exception as e:
-        return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Error", "mensaje": f"Ocurrió un error: {e}", "color": "var(--bad)"})
     finally:
-        if conn and conn.is_connected():
-            conn.close()
+        if conn and conn.is_connected(): conn.close()
+
 
 @app.get("/verificar/{folio}", response_class=HTMLResponse)
 def verificar(request: Request, folio: str):
     conn = get_db_connection()
     if not conn:
         return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Error de conexión", "mensaje": "No se pudo conectar a la base de datos.", "color": "var(--bad)"})
-
     try:
         cur = conn.cursor(dictionary=True)
-        query = """
-            SELECT d.*, a.nombre AS alumno, a.curp, e.nombre AS escuela, IFNULL(c.nombre, '—') AS curso
-            FROM diploma d JOIN alumno a ON d.alumno_id = a.alumno_id
-            JOIN escuela e ON e.escuela_id = a.escuela_id
-            LEFT JOIN curso c ON c.curso_id = d.curso_id
-            WHERE d.folio = %s
-        """
+        query = "SELECT d.*, a.nombre AS alumno, a.curp, e.nombre AS escuela, IFNULL(c.nombre, '—') AS curso FROM diploma d JOIN alumno a ON d.alumno_id = a.alumno_id LEFT JOIN curso c ON d.curso_id = c.curso_id LEFT JOIN escuela e ON a.escuela_id = e.escuela_id WHERE d.folio = %s"
         cur.execute(query, (folio,))
         diploma = cur.fetchone()
-        
         if not diploma:
             return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "No encontrado", "mensaje": f"El folio <code>{folio}</code> no existe.", "color": "var(--bad)"})
-
         diploma["download_url"] = diploma["pdf_url"] if diploma.get("pdf_url", "").startswith("http") else None
-        
         return templates.TemplateResponse("verificacion.html", {"request": request, "diploma": diploma, "title": f"Verificación - {diploma['alumno']}"})
-    except Exception as e:
-        return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Error", "mensaje": str(e), "color": "var(--bad)"})
     finally:
-        if conn and conn.is_connected():
-            conn.close()
-
-@app.get("/api/estado/{folio}")
-def api_estado(folio: str):
-    """API JSON para verificar estado de un diploma."""
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Conexión a BD fallida"}
-
-    try:
-        cur = conn.cursor(dictionary=True)
-        cur.execute("""
-            SELECT d.folio, d.estado, d.fecha_emision, d.hash_sha256, a.nombre AS alumno, e.nombre AS escuela, IFNULL(c.nombre, '—') AS curso
-            FROM diploma d JOIN alumno a ON d.alumno_id = a.alumno_id
-            JOIN escuela e ON e.escuela_id = a.escuela_id
-            LEFT JOIN curso c ON c.curso_id = d.curso_id WHERE d.folio = %s
-        """, (folio,))
-        diploma = cur.fetchone()
-        if not diploma: return {"detail": "Not found"}
-        return diploma
-    finally:
-        if conn and conn.is_connected():
-            conn.close()
-
-@app.get("/db_test", response_class=PlainTextResponse)
-def db_test():
-    """Prueba de conexión a MySQL."""
-    try:
-        conn = get_db_connection()
-        if not conn: return "❌ No se pudo establecer conexión"
-        cur = conn.cursor()
-        cur.execute("SELECT NOW()")
-        fecha = cur.fetchone()[0]
-        return f"✅ Conectado correctamente a MySQL.\nFecha servidor: {fecha}"
-    except Exception as e:
-        return f"❌ Error de conexión: {e}"
-    finally:
-        if 'conn' in locals() and conn.is_connected():
-            conn.close()
-            
-@app.get("/pdfs-list", response_class=HTMLResponse)
-def pdfs_list(request: Request):
-    if EN_PRODUCCION:
-        return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Índice no disponible en Producción", "mensaje": "Los archivos se gestionan directamente en Supabase."})
-    
-    out_dir = Path("out")
-    pdfs = [{"name": f.name, "url": f"/pdfs/{f.name}", "size": f.stat().st_size} for f in sorted(out_dir.glob("*.pdf"))] if out_dir.exists() else []
-    
-    html_content = "<h1>Índice de PDFs Locales</h1>"
-    if pdfs:
-        html_content += "<table border='1'><tr><th>Archivo</th><th>Tamaño (KB)</th><th>Descargar</th></tr>"
-        for pdf in pdfs:
-            html_content += f"<tr><td>{pdf['name']}</td><td>{pdf['size']/1024:.1f}</td><td><a href='{pdf['url']}'>Ver</a></td></tr>"
-        html_content += "</table>"
-    else:
-        html_content += "<p>No hay PDFs locales.</p>"
-    return HTMLResponse(content=html_content)
-
+        if conn and conn.is_connected(): conn.close()
 
 # =============================
 # SISTEMA DE ACCESO ADMIN
@@ -216,13 +129,13 @@ def admin_panel(request: Request, token: str = Query(...)):
                 stats['total_alumnos'] = cur.fetchone()['total']
                 cur.execute("SELECT COUNT(*) as total FROM diploma")
                 stats['total_diplomas'] = cur.fetchone()['total']
-                stats['total_verificaciones'] = stats['total_diplomas'] * 3
+                cur.execute("SELECT COUNT(*) as total FROM curso")
+                stats['total_cursos'] = cur.fetchone()['total']
                 stats['sistema_estado'] = "✅"
             finally:
                 if conn.is_connected(): conn.close()
         else:
             stats['sistema_estado'] = "❌"
-        
         return templates.TemplateResponse("admin-panel.html", {"request": request, "token": token, **stats, "admin_username": ADMIN_USERNAME, "now": datetime.now().year})
     except PermissionError:
         return RedirectResponse(url="/admin-login?error=Acceso+no+autorizado", status_code=302)
@@ -231,110 +144,96 @@ def admin_panel(request: Request, token: str = Query(...)):
 def admin_logout():
     return RedirectResponse(url="/", status_code=302)
 
+
+# =======================================================
+# NUEVOS ENDPOINTS PARA CARGA DE CSV Y GENERACIÓN WEB
+# =======================================================
+
+@app.post("/admin/upload-alumnos", response_class=HTMLResponse)
+async def upload_alumnos_csv(request: Request, token: str = Query(...), file: UploadFile = File(...)):
+    try:
+        check_admin(token)
+    except PermissionError:
+        return RedirectResponse(url="/admin-login?error=Token+inválido", status_code=302)
+
+    if not file.filename.endswith('.csv'):
+        return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Error de Archivo", "mensaje": "El archivo debe ser de tipo CSV."})
+
+    content = await file.read()
+    stream = io.StringIO(content.decode("utf-8"))
+    reader = csv.DictReader(stream)
+
+    alumnos_nuevos = 0
+    alumnos_actualizados = 0
+    errores = []
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        for i, row in enumerate(reader):
+            try:
+                # El CSV debe tener: nombre, curp, escuela_id, grado_id, profesor_id
+                cur.execute("SELECT alumno_id FROM alumno WHERE curp = %s", (row['curp'],))
+                existe = cur.fetchone()
+                if existe:
+                    cur.execute("UPDATE alumno SET nombre=%s, escuela_id=%s, grado_id=%s, profesor_id=%s WHERE curp=%s",
+                                (row['nombre'], row['escuela_id'], row['grado_id'], row['profesor_id'], row['curp']))
+                    alumnos_actualizados += 1
+                else:
+                    cur.execute("INSERT INTO alumno (nombre, curp, escuela_id, grado_id, profesor_id, fecha_reg) VALUES (%s, %s, %s, %s, %s, NOW())",
+                                (row['nombre'], row['curp'], row['escuela_id'], row['grado_id'], row['profesor_id']))
+                    alumnos_nuevos += 1
+            except Exception as e:
+                errores.append(f"Error en fila {i+2}: {e}")
+        conn.commit()
+    finally:
+        if conn and conn.is_connected(): conn.close()
+
+    mensaje = f"Carga completada.<br>Alumnos nuevos: {alumnos_nuevos}<br>Alumnos actualizados: {alumnos_actualizados}"
+    if errores:
+        mensaje += "<br><br><strong>Errores:</strong><br>" + "<br>".join(errores)
+
+    return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Resultado de Carga", "mensaje": mensaje})
+
+
+def task_generar_diplomas_wrapper(curso_id: int):
+    """ Función que envuelve la lógica de generación para ser llamada en segundo plano. """
+    print(f"INICIANDO TAREA: Generación de diplomas para el curso {curso_id}")
+    try:
+        gen.generar_diplomas_para_curso(curso_id)
+        print(f"TAREA COMPLETADA: Diplomas para el curso {curso_id} generados.")
+    except Exception as e:
+        print(f"TAREA FALLIDA: Error al generar diplomas para el curso {curso_id}: {e}")
+
+# ===================== INICIA CORRECCIÓN =====================
+@app.post("/admin/generar-diplomas-action", response_class=HTMLResponse)
+async def generar_diplomas_action(request: Request, background_tasks: BackgroundTasks, token: str = Query(...), curso_id: int = Form(...)):
+# ===================== TERMINA CORRECCIÓN ====================
+    """ Inicia la generación de diplomas para un curso en segundo plano. """
+    try:
+        check_admin(token)
+    except PermissionError:
+        return RedirectResponse(url="/admin-login?error=Token+inválido", status_code=302)
+
+    background_tasks.add_task(task_generar_diplomas_wrapper, curso_id)
+
+    mensaje = f"La generación de diplomas para el curso <strong>{curso_id}</strong> ha comenzado en segundo plano.<br>El proceso puede tardar varios minutos. Revisa los logs de Render para ver el progreso."
+    return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Proceso Iniciado", "mensaje": mensaje})
+
+
 # =============================
-# ENDPOINTS DE HERRAMIENTAS ADMIN
+# OTROS ENDPOINTS Y SERVICIO DE ARCHIVOS
 # =============================
-
-@app.get("/admin/generar", response_class=HTMLResponse)
-def admin_generar(request: Request, token: str = Query(...)):
-    try:
-        check_admin(token)
-        return templates.TemplateResponse("mensaje.html", {
-            "request": request,
-            "titulo": "Generador de PDFs",
-            "mensaje": "La generación de diplomas ahora se realiza localmente con <code>generar_diplomas.py</code> y se sube automáticamente a Supabase.",
-            "color": "var(--ok)"
-        })
-    except PermissionError:
-        return RedirectResponse(url="/admin-login?error=Token+inválido", status_code=302)
-
-@app.get("/admin/sync", response_class=HTMLResponse)
-def admin_sync(request: Request, token: str = Query(...)):
-    """Sincroniza URLs de Supabase en la BD para registros que no la tengan."""
-    try:
-        check_admin(token)
-        conn = get_db_connection()
-        if not conn: raise HTTPException(status_code=500, detail="Error de BD")
-        
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT diploma_id, pdf_path, folio FROM diploma WHERE pdf_url IS NULL OR pdf_url = '' OR pdf_url NOT LIKE 'http%'")
-            sin_url = cur.fetchall()
-            
-            if not sin_url:
-                return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Sincronización", "mensaje": "Todos los diplomas ya están sincronizados."})
-
-            actualizados = 0
-            for d in sin_url:
-                if d.get("pdf_path"):
-                    pdf_name = os.path.basename(d["pdf_path"])
-                    public_url = f"{SUPABASE_PUBLIC_BASE}/{pdf_name}"
-                    cur.execute("UPDATE diploma SET pdf_url=%s WHERE diploma_id=%s", (public_url, d["diploma_id"]))
-                    actualizados += 1
-            conn.commit()
-            return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Sincronización Exitosa", "mensaje": f"{actualizados} diplomas actualizados."})
-        finally:
-            if conn.is_connected(): conn.close()
-    except PermissionError:
-        return RedirectResponse(url="/admin-login?error=Token+inválido", status_code=302)
-
-@app.get("/admin/auditar", response_class=HTMLResponse)
-def admin_auditar(request: Request, token: str = Query(...)):
-    try:
-        check_admin(token)
-        conn = get_db_connection()
-        if not conn: raise HTTPException(status_code=500, detail="Error de BD")
-
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT diploma_id, folio, pdf_path, pdf_url FROM diploma")
-            diplomas = cur.fetchall()
-            resultados = []
-            for d in diplomas:
-                # La auditoría ahora verifica si existe una URL de Supabase
-                estado = "✅ URL Asignada" if d.get("pdf_url") and d["pdf_url"].startswith("http") else "❌ Sin URL"
-                resultados.append({"folio": d["folio"], "estado": estado, "path": d.get("pdf_url", "N/A")})
-            return templates.TemplateResponse("mensaje.html", {"request": request, "titulo": "Auditoría", "mensaje": f"Se auditaron {len(resultados)} registros.", "diplomas": resultados})
-        finally:
-            if conn.is_connected(): conn.close()
-    except PermissionError:
-        return RedirectResponse(url="/admin-login?error=Token+inválido", status_code=302)
-        
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz():
     return "OK"
-
-# =============================
-# SERVICIO DE ARCHIVOS
-# =============================
 
 @app.get("/static/{file_path:path}")
 async def serve_static(file_path: str):
     static_file = Path("static") / file_path
     if static_file.exists(): return FileResponse(static_file)
-    raise HTTPException(status_code=404, detail="Archivo no encontrado")
-
-@app.get("/pdfs/{file_path:path}")
-async def serve_pdfs(file_path: str):
-    pdf_file = Path("out") / file_path
-    if pdf_file.exists(): return FileResponse(pdf_file, media_type='application/pdf')
-    raise HTTPException(status_code=404, detail="PDF no disponible localmente.")
-
-if not EN_PRODUCCION:
-    app.mount("/static_mount", StaticFiles(directory="static"), name="static_mount")
-    out_dir = Path("out")
-    out_dir.mkdir(exist_ok=True)
-    app.mount("/pdfs_mount", StaticFiles(directory="out"), name="pdfs_mount")
-    print("🔧 Modo: DESARROLLO")
-else:
-    print("🚀 Modo: PRODUCCIÓN")
-
-# =============================
-# INICIO LOCAL
-# =============================
+    raise HTTPException(status_code=404)
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"✅ API iniciada. Modo: {'PRODUCCIÓN' if EN_PRODUCCION else 'DESARROLLO'}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

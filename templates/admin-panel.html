@@ -28,53 +28,49 @@
       <p>Sistema completo de gestión de diplomas</p>
     </section>
 
-    <!-- Herramientas de administración -->
+    <!-- Carga masiva de alumnos por CSV -->
     <section class="card">
-      <h3>🛠️ Herramientas del Sistema</h3>
-      
-      <div class="tools-grid">
-        <div class="tool-card">
-          <div class="tool-icon">📄</div>
-          <h4>Generar Diplomas</h4>
-          <p class="muted">Ejecuta el script local para crear PDFs</p>
-          <a class="btn admin-action" href="/admin/generar">Instrucciones</a>
+      <h3>⬆️ Carga Masiva de Alumnos por CSV</h3>
+      <p class="muted" style="margin-bottom: 1.5rem;">Sube un archivo CSV con las columnas: <strong>nombre, curp, escuela_id, grado_id, profesor_id</strong>.</p>
+      <form method="post" enctype="multipart/form-data" action="/admin/upload-alumnos?token={{ token }}">
+        <div class="grid-form">
+          <input type="file" name="file" required accept=".csv" style="background: transparent; border: none; padding: 0.5rem 0;">
+          <button class="btn brand" type="submit">Cargar Alumnos</button>
         </div>
-        
-        <div class="tool-card">
-          <div class="tool-icon">📊</div>
-          <h4>Auditoría</h4>
-          <p class="muted">Verifica la consistencia de los registros</p>
-          <a class="btn admin-action" href="/admin/auditar">Auditar</a>
+      </form>
+    </section>
+
+    <!-- Generación de Diplomas desde la web -->
+    <section class="card">
+      <h3>📄 Generación de Diplomas por Curso</h3>
+      <p class="muted" style="margin-bottom: 1.5rem;">Introduce el ID del curso para generar todos sus diplomas. El proceso se ejecutará en segundo plano.</p>
+      <form method="post" action="/admin/generar-diplomas-action?token={{ token }}">
+        <div class="grid-form">
+          <input type="number" name="curso_id" placeholder="ID del Curso" required>
+          <button class="btn brand" type="submit">Iniciar Generación</button>
         </div>
-        
-        <div class="tool-card">
-          <div class="tool-icon">🔄</div>
-          <h4>Sincronización Manual</h4>
-          <p class="muted">Asigna URLs de Supabase a registros antiguos</p>
-          <a class="btn admin-action" href="/admin/sync">Sincronizar</a>
-        </div>
-      </div>
+      </form>
     </section>
 
     <!-- Información del sistema -->
     <section class="card" style="background: rgba(255,255,255,0.05);">
       <h3>📈 Estado del Sistema</h3>
-      <div class="stats-grid">
+      <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; text-align: center;">
         <div class="stat-item">
-          <span class="stat-number">{{ total_alumnos or '0' }}</span>
-          <span class="stat-label">Alumnos Registrados</span>
+          <span style="font-size: 2rem; font-weight: 700; display: block;">{{ total_alumnos or '0' }}</span>
+          <span style="font-size: 0.9rem; color: var(--text-secondary);">Alumnos Registrados</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">{{ total_diplomas or '0' }}</span>
-          <span class="stat-label">Diplomas Generados</span>
+          <span style="font-size: 2rem; font-weight: 700; display: block;">{{ total_cursos or '0' }}</span>
+          <span style="font-size: 0.9rem; color: var(--text-secondary);">Cursos Activos</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">{{ total_verificaciones or '0' }}</span>
-          <span class="stat-label">Verificaciones (Est.)</span>
+          <span style="font-size: 2rem; font-weight: 700; display: block;">{{ total_diplomas or '0' }}</span>
+          <span style="font-size: 0.9rem; color: var(--text-secondary);">Diplomas Generados</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">{{ sistema_estado or '–' }}</span>
-          <span class="stat-label">Estado del Sistema</span>
+          <span style="font-size: 2rem; font-weight: 700; display: block;">{{ sistema_estado or '–' }}</span>
+          <span style="font-size: 0.9rem; color: var(--text-secondary);">Estado del Sistema</span>
         </div>
       </div>
     </section>
@@ -86,54 +82,6 @@
     </div>
   </footer>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('token');
-
-      if (!token) {
-        window.location.href = '/admin-login?error=Token+requerido';
-        return;
-      }
-
-      const adminActions = document.querySelectorAll('.admin-action');
-
-      adminActions.forEach(actionElement => {
-        actionElement.addEventListener('click', async (event) => {
-          event.preventDefault();
-          const endpoint = actionElement.getAttribute('href');
-          if (!endpoint) return;
-
-          // Construimos la URL con el token como query parameter, ya que es el método
-          // que tu API está usando actualmente para la autenticación de estos endpoints.
-          const urlWithToken = `${endpoint}?token=${token}`;
-
-          document.body.innerHTML = `<div class="wrap"><div class="card" style="text-align:center; margin-top: 5rem;"><h1>Procesando...</h1><p>Por favor, espera un momento.</p></div></div>`;
-
-          try {
-            const response = await fetch(urlWithToken, {
-              method: 'GET'
-            });
-            
-            const htmlResult = await response.text();
-
-            if (response.ok) {
-              document.open();
-              document.write(htmlResult);
-              document.close();
-            } else {
-              // Si la respuesta no es OK, intentamos mostrar un mensaje de error.
-              // FastAPI a menudo redirige en caso de error, lo que el navegador manejará.
-              document.body.innerHTML = htmlResult;
-            }
-          } catch (error) {
-            console.error('Error en la petición fetch:', error);
-            document.body.innerHTML = `<div class="wrap"><div class="card" style="text-align:center; margin-top: 5rem;"><h1>Error de Red</h1><p>No se pudo conectar con el servidor.</p></div></div>`;
-          }
-        });
-      });
-    });
-  </script>
 </body>
 </html>
 
