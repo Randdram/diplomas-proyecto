@@ -51,44 +51,48 @@ def _auth_headers(extra: dict | None = None):
 
 def upload_pdf(local_path: str, dest_name: str | None = None, bucket: str | None = None, upsert: bool = True) -> str:
     """
-    Sube un PDF a Supabase Storage y devuelve la URL pública (si el bucket es público).
-
-    local_path: ruta del archivo local (PDF).
-    dest_name: nombre de destino en el bucket (carpetas permitidas, ej. 'alumnos/folio.pdf').
-               Si no se pasa, se genera uno aleatorio .pdf.
-    bucket:    nombre del bucket (default: SUPABASE_BUCKET).
-    upsert:    si True, sobrescribe si existe.
+    Sube un PDF desde un archivo local. (Ahora es una función de conveniencia).
     """
-    bucket = bucket or SUPABASE_BUCKET
-    _assert_env()
-
     p = Path(local_path)
     if not p.exists():
         raise FileNotFoundError(f"No existe el archivo: {local_path}")
-    if dest_name is None:
-        dest_name = f"{uuid.uuid4()}.pdf"
-
-    mime = mimetypes.guess_type(p.name)[0] or "application/pdf"
 
     with open(p, "rb") as f:
         data = f.read()
 
+    # Llama a la nueva función para hacer el trabajo real
+    return upload_pdf_from_bytes(data, dest_name or p.name, bucket, upsert)
+
+# ====================================================================
+# ESTA ES LA FUNCIÓN CLAVE QUE FALTABA
+# ====================================================================
+def upload_pdf_from_bytes(data: bytes, dest_name: str, bucket: str | None = None, upsert: bool = True) -> str:
+    """
+    Sube los bytes de un PDF a Supabase Storage y devuelve la URL pública.
+    Esta función es para subidas desde memoria, sin archivos locales.
+    """
+    bucket = bucket or SUPABASE_BUCKET
+    _assert_env()
+
+    if not dest_name:
+        dest_name = f"{uuid.uuid4()}.pdf"
+
     # POST/PUT a /object/{bucket}/{dest_name}
-    # Para permitir sobrescritura, usamos x-upsert: true
     url = f"{OBJECT_URL}/{bucket}/{dest_name}"
     headers = _auth_headers({
-        "Content-Type": mime,
+        "Content-Type": "application/pdf",
         "x-upsert": "true" if upsert else "false",
     })
     resp = requests.post(url, headers=headers, data=data, timeout=60)
 
     # Respuestas válidas: 200/201/204
     if resp.status_code not in (200, 201, 204):
-        raise RuntimeError(f"Error al subir: {resp.status_code} {resp.text}")
+        raise RuntimeError(f"Error al subir a Supabase: {resp.status_code} {resp.text}")
 
     # Construimos URL pública (asumiendo bucket público)
     public_url = f"{PUBLIC_BASE}/{bucket}/{dest_name}"
     return public_url
+# ====================================================================
 
 def delete_object(path: str, bucket: str | None = None) -> bool:
     """
