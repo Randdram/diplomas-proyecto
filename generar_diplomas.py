@@ -40,8 +40,8 @@ class Posiciones:
     # Coordenadas ajustadas para alinear el texto SOBRE las líneas
     nombre_xy: Tuple[float, float] = (421, 322)
     qr_xy: Tuple[float, float] = (710, 60)
-    coordinador_xy: Tuple[float, float] = (421, 160)
-    fecha_xy: Tuple[float, float] = (421, 132)
+    coordinador_xy: Tuple[float, float] = (421, 120)
+    fecha_xy: Tuple[float, float] = (421, 60)
     font_nombre: int = 28
     font_coordinador: int = 14
     font_fecha: int = 12
